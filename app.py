@@ -50,6 +50,12 @@ def add_security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com"
+    )
     return response
 
 
@@ -142,10 +148,11 @@ def api_prefetch(idx):
     return jsonify({"status": "ok"})
 
 
-@app.route("/api/save")
+@app.route("/api/save", methods=["POST"])
 def api_save():
     """Genera e scarica il file MP3 completo."""
-    voice = request.args.get("voice", DEFAULT_VOICE)
+    data = request.get_json(silent=True) or {}
+    voice = data.get("voice", DEFAULT_VOICE)
     if voice not in ALL_VOICES:
         return jsonify({"error": f"Voce '{voice}' non valida"}), 400
     if not engine.paragraphs:
@@ -153,10 +160,8 @@ def api_save():
 
     mp3_bytes = engine.save_all(voice)
 
-    safe_name = (
-        "".join(c for c in engine.filename.replace(".md", ".mp3") if c.isalnum() or c in ".-_ ")
-        or "output.mp3"
-    )
+    stem = Path(engine.filename).stem
+    safe_name = "".join(c for c in f"{stem}.mp3" if c.isalnum() or c in ".-_ ") or "output.mp3"
     encoded_name = quote(safe_name)
 
     return Response(

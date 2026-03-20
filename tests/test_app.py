@@ -10,6 +10,7 @@ import io
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -262,11 +263,15 @@ class TestAudioEndpoint:
 
 class TestSaveEndpoint:
     def test_save_no_file_loaded(self, client):
-        """GET /api/save senza file caricato deve restituire 400."""
+        """POST /api/save senza file caricato deve restituire 400."""
         # Arrange — engine senza paragrafi (resettato dal fixture)
 
         # Act
-        response = client.get("/api/save")
+        response = client.post(
+            "/api/save",
+            data='{"voice": "giuseppe"}',
+            content_type="application/json",
+        )
 
         # Assert
         assert response.status_code == 400
@@ -382,3 +387,174 @@ class TestTTSEngine:
         assert audio_giuseppe == mp3_giuseppe
         assert audio_isabella == mp3_isabella
         assert audio_giuseppe != audio_isabella
+
+
+# ===========================================================================
+# Test — TTSEngine._synthesize
+# ===========================================================================
+
+
+class TestSynthesize:
+    def test_synthesize_edge_uses_async_loop(self, engine):
+        """_synthesize con voce Edge deve usare run_coroutine_threadsafe."""
+        # Arrange
+        engine.load_text("Testo di test.", "test.md")
+        fake_mp3 = b"ID3\x00fake_edge_mp3"
+
+        with patch("tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
+            mock_future = MagicMock()
+            mock_future.result.return_value = fake_mp3
+            mock_rcs.return_value = mock_future
+
+            # Act
+            result = engine._synthesize(0, "giuseppe")
+
+        # Assert
+        assert result == fake_mp3
+        mock_rcs.assert_called_once()
+        mock_future.result.assert_called_once_with(timeout=60)
+
+    def test_synthesize_piper_loads_model_lazy(self, engine):
+        """_synthesize con voce Piper deve caricare il modello e convertire WAV in MP3."""
+        # Arrange
+        engine.load_text("Testo Piper.", "test.md")
+        fake_wav = b"RIFF\x00\x00fake_wav"
+        fake_mp3 = b"ID3\x00fake_piper_mp3"
+
+        with patch.object(engine, "_load_piper") as mock_load, patch(
+            "tts_engine.sintetizza_piper", return_value=fake_wav
+        ), patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3):
+            # Act
+            result = engine._synthesize(0, "paola")
+
+        # Assert
+        assert result == fake_mp3
+        mock_load.assert_called_once()
+
+
+# ===========================================================================
+# Test — TTSEngine.save_all
+# ===========================================================================
+
+
+class TestSaveAll:
+    def test_save_all_concatenates_all_paragraphs(self, engine):
+        """save_all deve sintetizzare tutti i paragrafi e concatenarli."""
+        # Arrange
+        engine.load_text("Primo.\n\nSecondo.\n\nTerzo.", "test.md")
+
+        call_count = 0
+
+        def fake_get_audio(idx, voice):
+            nonlocal call_count
+            call_count += 1
+            return f"mp3_{idx}".encode()
+
+        with patch.object(engine, "get_audio", side_effect=fake_get_audio):
+            # Act
+            result = engine.save_all("giuseppe")
+
+        # Assert
+        assert call_count == 3
+        assert result == b"mp3_0mp3_1mp3_2"
+
+
+# ===========================================================================
+# Test — TTSEngine.prefetch logging
+# ===========================================================================
+
+
+class TestPrefetchLogging:
+    def test_prefetch_logs_warning_on_failure(self, engine):
+        """Il prefetch deve loggare un warning quando la sintesi fallisce."""
+        # Arrange
+        engine.load_text("Paragrafo test.", "test.md")
+
+        with patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")), patch(
+            "tts_engine.log"
+        ) as mock_log:
+            # Act
+            engine.prefetch(0, "giuseppe")
+            # Attendi che il thread pool esegua il task
+            time.sleep(0.5)
+
+        # Assert
+        mock_log.warning.assert_called_once()
+        args = mock_log.warning.call_args
+        assert "Prefetch paragrafo" in args[0][0]
+
+
+# ===========================================================================
+# Test — /api/save come endpoint POST
+# ===========================================================================
+
+
+class TestSaveEndpointPost:
+    def test_save_rejects_get(self, client):
+        """GET /api/save deve restituire 405 Method Not Allowed."""
+        # Act
+        response = client.get("/api/save")
+
+        # Assert
+        assert response.status_code == 405
+
+    def test_save_post_no_file_loaded(self, client):
+        """POST /api/save senza file caricato deve restituire 400."""
+        # Act
+        response = client.post(
+            "/api/save",
+            data='{"voice": "giuseppe"}',
+            content_type="application/json",
+        )
+
+        # Assert
+        assert response.status_code == 400
+        assert "error" in response.get_json()
+
+    def test_save_post_invalid_voice(self, client):
+        """POST /api/save con voce invalida deve restituire 400."""
+        # Act
+        response = client.post(
+            "/api/save",
+            data='{"voice": "nonexistent"}',
+            content_type="application/json",
+        )
+
+        # Assert
+        assert response.status_code == 400
+
+
+# ===========================================================================
+# Test — TTSEngine._load_piper double-checked locking
+# ===========================================================================
+
+
+class TestLoadPiper:
+    def test_load_piper_called_once_with_concurrent_threads(self, engine):
+        """_load_piper deve caricare il modello una sola volta anche con thread concorrenti."""
+        # Arrange
+        load_count = 0
+
+        def counting_load():
+            nonlocal load_count
+            # Simula _load_piper senza caricare davvero il modello
+            with engine._lock:
+                if engine._piper_voice is not None:
+                    return
+                load_count += 1
+                time.sleep(0.1)  # Simula tempo di caricamento
+                engine._piper_voice = MagicMock()
+                engine._piper_sample_rate = 22050
+
+        with patch.object(engine, "_load_piper", side_effect=counting_load):
+            # Act — 5 thread concorrenti che chiamano tutti _load_piper
+            threads = []
+            for _ in range(5):
+                t = threading.Thread(target=engine._load_piper)
+                threads.append(t)
+                t.start()
+            for t in threads:
+                t.join()
+
+        # Assert — il modello deve essere stato caricato una sola volta
+        assert load_count == 1

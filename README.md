@@ -7,7 +7,7 @@ nel testo italiano.
 
 ## Funzionalità
 
-- Lettura ad alta voce di file Markdown, paragrafo per paragrafo
+- Lettura ad alta voce di file di testo (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragrafo per paragrafo
 - 5 voci italiane: 4 online (Edge TTS) + 1 offline (Piper TTS)
 - Interfaccia web con player audio (play, pausa, stop, precedente, successivo, ripeti)
 - Interfaccia CLI per uso da terminale
@@ -65,16 +65,16 @@ Scorciatoie tastiera: `Spazio` play/pausa, `freccia sinistra/destra` prev/next, 
 source venv/bin/activate
 
 # Lettura con voce predefinita (Giuseppe, multilingue)
-python leggi_markdown.py file.md
+python leggi.py file.md
 
 # Scelta voce
-python leggi_markdown.py file.md --voice isabella
+python leggi.py file.md --voice isabella
 
 # Voce offline (non serve internet)
-python leggi_markdown.py file.md --voice paola
+python leggi.py file.md --voice paola
 
 # Salvataggio in MP3
-python leggi_markdown.py file.md --voice giuseppe --salva output.mp3
+python leggi.py file.md --voice giuseppe --salva output.mp3
 ```
 
 Con `--salva` vengono creati:
@@ -99,12 +99,17 @@ scaricato automaticamente al primo utilizzo, circa 60 MB).
 
 ```
 text-to-speech/
-├── leggi_markdown.py   # CLI: lettura da terminale
 ├── app.py              # Server Flask per interfaccia web
 ├── tts_engine.py       # Motore TTS con cache e prefetch
+├── leggi.py            # CLI: lettura da terminale
+├── converters.py       # Convertitori formato → testo piano
 ├── templates/
 │   └── index.html      # Interfaccia web (player audio)
+├── tests/
+│   └── test_app.py     # Test suite (pytest)
+├── docs/               # Documentazione
 ├── requirements.txt    # Dipendenze Python
+├── CLAUDE.md           # Istruzioni per Claude Code
 ├── LICENSE             # GPL-3.0
 └── README.md
 ```
@@ -121,6 +126,11 @@ ufficiale di Microsoft Edge "Read Aloud". Questo servizio non è garantito
 e potrebbe cessare di funzionare in qualsiasi momento. Non è autorizzato
 per uso commerciale. Per applicazioni commerciali si consiglia
 [Azure AI Speech](https://azure.microsoft.com/it-it/products/ai-services/text-to-speech).
+
+**Uso single-user**: l'applicazione web utilizza un'unica istanza del motore TTS
+condivisa tra tutte le richieste. Non è progettata per l'uso simultaneo da parte
+di più utenti. Se più utenti caricano file contemporaneamente, i dati verranno
+sovrascritti.
 
 La voce Paola (Piper TTS) è completamente offline e libera da restrizioni
 (dataset di addestramento sotto licenza CC0 public domain).

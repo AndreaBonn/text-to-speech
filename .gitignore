@@ -5,11 +5,20 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
-# Output audio
+# Dati di input/output (contenuti personali e generati)
+data/input/
+data/output/
+
+# Output legacy (prima della riorganizzazione)
 output_paragrafi/
 *.mp3
 *.wav
+
+# Preserva struttura cartelle
+!data/input/.gitkeep
+!data/output/.gitkeep
 
 # Markdown sorgenti (contenuti personali)
 *.md

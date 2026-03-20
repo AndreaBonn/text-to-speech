@@ -3,7 +3,6 @@ ebooklib==0.20
 edge-tts==7.2.7
 flask==3.1.0
 lxml==6.0.2
-pathvalidate==3.3.1
 piper-tts==1.4.1
 pymupdf==1.27.2.2
 pytest==9.0.2

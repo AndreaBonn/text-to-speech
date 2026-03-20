@@ -5,6 +5,7 @@ Importa le funzioni di sintesi da leggi.py.
 """
 
 import asyncio
+import logging
 import subprocess
 import threading
 from collections import OrderedDict
@@ -21,6 +22,12 @@ from leggi import (
     sintetizza_piper,
     scarica_voce_piper,
 )
+
+log = logging.getLogger(__name__)
+
+# Event loop dedicato per le coroutine Edge TTS (thread-safe)
+_async_loop = asyncio.new_event_loop()
+threading.Thread(target=_async_loop.run_forever, daemon=True, name="tts-async-loop").start()
 
 MAX_CACHE = 50
 _executor = ThreadPoolExecutor(max_workers=2)
@@ -47,6 +54,7 @@ def _wav_to_mp3_bytes(wav_bytes: bytes) -> bytes:
         input=wav_bytes,
         capture_output=True,
         check=True,
+        timeout=30,
     )
     return result.stdout
 
@@ -135,7 +143,7 @@ class TTSEngine:
                 mp3 = self._synthesize(index, voice)
                 self._put_cache(cache_key, mp3)
             except Exception:
-                pass  # prefetch fallito non blocca nulla
+                log.warning("Prefetch paragrafo %d fallito", index, exc_info=True)
 
         _executor.submit(_do_prefetch)
 
@@ -159,7 +167,8 @@ class TTSEngine:
 
         if voice in EDGE_VOICES:
             voice_id = EDGE_VOICES[voice]
-            return asyncio.run(sintetizza_edge(voice_id, text))
+            future = asyncio.run_coroutine_threadsafe(sintetizza_edge(voice_id, text), _async_loop)
+            return future.result(timeout=60)
 
         # Piper (offline) — carica il modello lazy
         if self._piper_voice is None:

@@ -32,6 +32,12 @@ import wave
 import io
 from pathlib import Path
 
+# ─── Directory di progetto ───────────────────────────────────────────────────
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATA_INPUT = PROJECT_ROOT / "data" / "input"
+DATA_OUTPUT = PROJECT_ROOT / "data" / "output"
+
 # ─── Configurazione voci ─────────────────────────────────────────────────────
 
 EDGE_VOICES = {
@@ -110,7 +116,10 @@ def scarica_voce_piper():
 def markdown_a_testo(percorso: Path) -> str:
     if shutil.which("pandoc"):
         result = subprocess.run(
-            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"], capture_output=True, text=True
+            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0:
             return result.stdout
@@ -123,8 +132,8 @@ def markdown_a_testo(percorso: Path) -> str:
     testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
     testo = re.sub(r"\*(.+?)\*", r"\1", testo)
     testo = re.sub(r"`{1,3}.*?`{1,3}", "", testo, flags=re.DOTALL)
-    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)       # immagini (prima dei link)
-    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)   # link → solo testo
+    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)  # immagini (prima dei link)
+    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)  # link → solo testo
     testo = re.sub(r"[-*_]{3,}", "", testo)
     testo = re.sub(r"^\s*[-*+]\s+", "", testo, flags=re.MULTILINE)
     # Rimuovi tabelle Markdown (righe con |)
@@ -163,6 +172,7 @@ def wav_a_mp3(wav_bytes: bytes, output_path: Path):
         ],
         input=wav_bytes,
         check=True,
+        timeout=30,
     )
 
 
@@ -207,6 +217,7 @@ def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
         ],
         input=b"".join(lista_mp3),
         check=True,
+        timeout=30,
     )
 
 
@@ -215,23 +226,24 @@ def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
 
 def riproduci_audio(audio_bytes: bytes, formato: str):
     if formato == "wav":
-        subprocess.run(["aplay", "-q", "-"], input=audio_bytes, check=False)
+        subprocess.run(["aplay", "-q", "-"], input=audio_bytes, check=False, timeout=60)
     else:
         subprocess.run(
             ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"],
             input=audio_bytes,
             check=False,
+            timeout=60,
         )
 
 
 # ─── Lettura con Piper TTS ──────────────────────────────────────────────────
 
 
-def leggi_con_piper(testo: str, salva_path: Path | None = None):
+def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Path | None = None):
     try:
         from piper import PiperVoice
     except ImportError:
-        error("Piper non trovato. Installa con: pip install piper-tts pathvalidate")
+        error("Piper non trovato. Installa con: pip install piper-tts")
         sys.exit(1)
 
     riproduce = shutil.which("aplay") is not None
@@ -250,10 +262,10 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None):
     paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
     info(f"Paragrafi da leggere: {len(paragrafi)}")
 
-    cartella_par = None
     if salva_path:
-        cartella_par = salva_path.parent / f"{salva_path.stem}_paragrafi"
-        cartella_par.mkdir(parents=True, exist_ok=True)
+        salva_path.parent.mkdir(parents=True, exist_ok=True)
+        if cartella_par:
+            cartella_par.mkdir(parents=True, exist_ok=True)
         info(f"Salvataggio in: {salva_path}")
 
     if riproduce:
@@ -268,7 +280,8 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None):
 
             if salva_path:
                 tutti_wav.append(wav_bytes)
-                wav_a_mp3(wav_bytes, cartella_par / f"{i:03d}.mp3")
+                if cartella_par:
+                    wav_a_mp3(wav_bytes, cartella_par / f"{i:03d}.mp3")
                 if not riproduce:
                     info(f"[{i}/{len(paragrafi)}] salvato")
 
@@ -289,7 +302,9 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None):
 # ─── Lettura con Edge TTS ───────────────────────────────────────────────────
 
 
-def leggi_con_edge(testo: str, voice_name: str, salva_path: Path | None = None):
+def leggi_con_edge(
+    testo: str, voice_name: str, salva_path: Path | None = None, cartella_par: Path | None = None
+):
     try:
         import edge_tts  # noqa: F401
     except ImportError:
@@ -305,10 +320,10 @@ def leggi_con_edge(testo: str, voice_name: str, salva_path: Path | None = None):
     paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
     info(f"Paragrafi da leggere: {len(paragrafi)}")
 
-    cartella_par = None
     if salva_path:
-        cartella_par = salva_path.parent / f"{salva_path.stem}_paragrafi"
-        cartella_par.mkdir(parents=True, exist_ok=True)
+        salva_path.parent.mkdir(parents=True, exist_ok=True)
+        if cartella_par:
+            cartella_par.mkdir(parents=True, exist_ok=True)
         info(f"Salvataggio in: {salva_path}")
 
     if riproduce:
@@ -337,7 +352,8 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
 
             if salva_path:
                 tutti_mp3.append(mp3_bytes)
-                (cartella_par / f"{i:03d}.mp3").write_bytes(mp3_bytes)
+                if cartella_par:
+                    (cartella_par / f"{i:03d}.mp3").write_bytes(mp3_bytes)
                 if not riproduce:
                     info(f"[{i}/{totale}] salvato")
 
@@ -371,6 +387,29 @@ async def _riproduci_async(mp3_bytes: bytes):
 # ─── Utilità UI ──────────────────────────────────────────────────────────────
 
 
+def calcola_path_output(input_file: Path):
+    """Calcola le directory di output dalla struttura data/.
+
+    Parameters
+    ----------
+    input_file : Path
+        File sorgente (es. data/input/documento.md).
+
+    Returns
+    -------
+    tuple[Path, Path, Path]
+        (cartella_base, path_mp3_completo, cartella_paragrafi)
+        Es: data/output/documento/full/documento.mp3,
+            data/output/documento/paragraphs/
+    """
+    stem = input_file.stem
+    cartella_base = DATA_OUTPUT / stem
+    cartella_full = cartella_base / "full"
+    cartella_par = cartella_base / "paragraphs"
+    path_mp3 = cartella_full / f"{stem}.mp3"
+    return cartella_base, path_mp3, cartella_par
+
+
 def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
     if not visibile:
         return
@@ -397,7 +436,11 @@ voci disponibili:
   isabella  Edge TTS, femminile
   elsa      Edge TTS, femminile
   diego     Edge TTS, maschile
-  paola     Piper TTS, femminile, offline""",
+  paola     Piper TTS, femminile, offline
+
+struttura output (con --salva):
+  data/output/<nome_file>/full/<nome_file>.mp3
+  data/output/<nome_file>/paragraphs/001.mp3, 002.mp3, ...""",
     )
     parser.add_argument("file", type=Path, help="File da leggere")
     parser.add_argument(
@@ -408,10 +451,8 @@ voci disponibili:
     )
     parser.add_argument(
         "--salva",
-        type=Path,
-        default=None,
-        metavar="OUTPUT.mp3",
-        help="Salva l'audio in MP3 (file unico + paragrafi singoli)",
+        action="store_true",
+        help="Salva l'audio in data/output/<nome_file>/",
     )
     args = parser.parse_args()
 
@@ -419,12 +460,14 @@ voci disponibili:
         error(f"File non trovato: {args.file}")
         sys.exit(1)
 
-    if args.salva and args.salva.suffix.lower() != ".mp3":
-        error("Formato supportato: .mp3")
-        sys.exit(1)
-
     info(f"File: {args.file.name}")
     info(f"Voce: {args.voice}")
+
+    salva_path = None
+    cartella_par = None
+    if args.salva:
+        _, salva_path, cartella_par = calcola_path_output(args.file)
+        info(f"Output: {salva_path.parent.parent}/")
 
     info("Converto in testo...")
     testo = file_a_testo(args.file)
@@ -437,9 +480,9 @@ voci disponibili:
 
     if args.voice in PIPER_VOICES:
         scarica_voce_piper()
-        leggi_con_piper(testo, salva_path=args.salva)
+        leggi_con_piper(testo, salva_path=salva_path, cartella_par=cartella_par)
     else:
-        leggi_con_edge(testo, args.voice, salva_path=args.salva)
+        leggi_con_edge(testo, args.voice, salva_path=salva_path, cartella_par=cartella_par)
 
     info("Fine.")
 
