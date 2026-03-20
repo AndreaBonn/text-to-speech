@@ -54,7 +54,8 @@ def add_security_headers(response):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com"
+        "font-src https://fonts.gstatic.com; "
+        "media-src 'self' blob:"
     )
     return response
 
