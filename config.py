@@ -34,6 +34,49 @@ VOICE_URLS = {
 ALL_VOICES = sorted(list(EDGE_VOICES.keys()) + list(PIPER_VOICES))
 DEFAULT_VOICE = "giuseppe"
 
+# ─── Stili di lettura (solo Edge TTS, via prosody SSML) ─────────────────────
+
+READING_STYLES = {
+    "neutro": {
+        "label": "Neutro",
+        "description": "Lettura standard, bilanciata",
+        "rate": "+0%",
+        "pitch": "+0Hz",
+    },
+    "notiziario": {
+        "label": "Notiziario",
+        "description": "Ritmo sostenuto e tono energico, come uno speaker",
+        "rate": "+13%",
+        "pitch": "+5Hz",
+    },
+    "audiolibro": {
+        "label": "Audiolibro",
+        "description": "Ritmo rilassato e tono caldo, come un narratore",
+        "rate": "-8%",
+        "pitch": "-3Hz",
+    },
+    "lento": {
+        "label": "Lento",
+        "description": "Ritmo molto lento, per studio o comprensione",
+        "rate": "-20%",
+        "pitch": "+0Hz",
+    },
+}
+
+ALL_STYLES = sorted(READING_STYLES.keys())
+DEFAULT_STYLE = "neutro"
+
+# Stile predefinito in base all'estensione del file caricato
+FILE_STYLE_DEFAULTS = {
+    ".epub": "audiolibro",
+    ".md": "notiziario",
+    ".txt": "neutro",
+    ".docx": "neutro",
+    ".html": "notiziario",
+    ".htm": "notiziario",
+    ".pdf": "neutro",
+}
+
 # ─── Colori terminale ────────────────────────────────────────────────────────
 
 GREEN = "\033[0;32m"

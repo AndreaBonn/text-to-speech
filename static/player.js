@@ -10,6 +10,7 @@ class TtsPlayer {
     this.currentIdx  = 0;
     this.totalCount  = 0;
     this.currentVoice = '';
+    this.currentStyle = '';
     this.filename    = '';
 
     /* Stato player */
@@ -47,6 +48,7 @@ class TtsPlayer {
       iconPlay:        document.getElementById('icon-play'),
       iconPause:       document.getElementById('icon-pause'),
       voiceSelect:     document.getElementById('voice-select'),
+      styleSelect:     document.getElementById('style-select'),
       fileInput:       document.getElementById('file-input'),
       fileName:        document.getElementById('file-name'),
       btnSave:         document.getElementById('btn-save'),
@@ -65,16 +67,34 @@ class TtsPlayer {
     try {
       const res  = await fetch('/api/voices');
       const data = await res.json();
-      const sel  = this._dom.voiceSelect;
-      sel.innerHTML = '';
+
+      /* Popola voci */
+      const vSel = this._dom.voiceSelect;
+      vSel.innerHTML = '';
       data.voices.forEach(v => {
         const opt  = document.createElement('option');
         opt.value  = v.id;
         opt.textContent = v.label + (v.multilingual ? ' (multi)' : '');
-        sel.appendChild(opt);
+        opt.dataset.type = v.type;
+        vSel.appendChild(opt);
       });
-      sel.value         = data.default;
-      this.currentVoice = data.default;
+      vSel.value         = data.default;
+      this.currentVoice  = data.default;
+
+      /* Popola stili */
+      const sSel = this._dom.styleSelect;
+      sSel.innerHTML = '';
+      data.styles.forEach(s => {
+        const opt  = document.createElement('option');
+        opt.value  = s.id;
+        opt.textContent = s.label;
+        opt.title  = s.description;
+        sSel.appendChild(opt);
+      });
+      sSel.value         = data.default_style;
+      this.currentStyle  = data.default_style;
+
+      this._updateStyleEnabled();
       this._updateSaveLink();
     } catch (err) {
       console.error('Errore caricamento voci:', err);
@@ -98,8 +118,15 @@ class TtsPlayer {
     /* Voice select */
     this._dom.voiceSelect.addEventListener('change', () => {
       this.currentVoice = this._dom.voiceSelect.value;
+      this._updateStyleEnabled();
       this._updateSaveLink();
-      /* Svuota prefetch cache se cambia voce */
+      this._clearPrefetch();
+    });
+
+    /* Style select */
+    this._dom.styleSelect.addEventListener('change', () => {
+      this.currentStyle = this._dom.styleSelect.value;
+      this._updateSaveLink();
       this._clearPrefetch();
     });
 
@@ -187,6 +214,9 @@ class TtsPlayer {
       this._clearPrefetch();
       this._setState('idle');
       this._setPlayIconLoading(false);
+
+      /* Auto-select stile in base al formato del file */
+      this._applySuggestedStyle(data.suggested_style);
 
       /* Aggiorna UI */
       this._dom.emptyState.classList.add('hidden');
@@ -286,7 +316,7 @@ class TtsPlayer {
     if (this._prefetchIdx === nextIdx) return; /* gia' in cache */
 
     try {
-      const url = `/api/audio/${nextIdx}?voice=${encodeURIComponent(this.currentVoice)}`;
+      const url = `/api/audio/${nextIdx}?voice=${encodeURIComponent(this.currentVoice)}&style=${encodeURIComponent(this.currentStyle)}`;
       const res = await fetch(url);
       if (!res.ok) return;
       const blob = await res.blob();
@@ -358,7 +388,7 @@ class TtsPlayer {
         audioSrc = this._prefetchUrl;
       } else {
         /* Fetch diretto */
-        const url = `/api/audio/${idx}?voice=${encodeURIComponent(this.currentVoice)}`;
+        const url = `/api/audio/${idx}?voice=${encodeURIComponent(this.currentVoice)}&style=${encodeURIComponent(this.currentStyle)}`;
         const res = await fetch(url);
 
         if (!res.ok) {
@@ -497,6 +527,33 @@ class TtsPlayer {
   }
 
   /* ----------------------------------------------------------
+     PRIVATE: stile di lettura
+  ---------------------------------------------------------- */
+
+  /** Disabilita il selettore stile per voci Piper (no SSML). */
+  _updateStyleEnabled() {
+    const opt = this._dom.voiceSelect.selectedOptions[0];
+    const isPiper = opt && opt.dataset.type === 'piper';
+    this._dom.styleSelect.disabled = isPiper;
+    if (isPiper) {
+      this._dom.styleSelect.value = 'neutro';
+      this.currentStyle = 'neutro';
+    }
+  }
+
+  /** Imposta lo stile suggerito in base all'estensione del file. */
+  _applySuggestedStyle(suggestedStyle) {
+    if (!suggestedStyle) return;
+    const opt = this._dom.voiceSelect.selectedOptions[0];
+    const isPiper = opt && opt.dataset.type === 'piper';
+    if (isPiper) return;
+
+    this._dom.styleSelect.value = suggestedStyle;
+    this.currentStyle = suggestedStyle;
+    this._updateSaveLink();
+  }
+
+  /* ----------------------------------------------------------
      PRIVATE: prefetch cache
   ---------------------------------------------------------- */
   _clearPrefetch() {
@@ -512,10 +569,12 @@ class TtsPlayer {
   ---------------------------------------------------------- */
   _updateSaveLink() {
     this._dom.btnSave.dataset.voice = this.currentVoice;
+    this._dom.btnSave.dataset.style = this.currentStyle;
   }
 
   async _handleSave() {
     const voice = this._dom.btnSave.dataset.voice;
+    const style = this._dom.btnSave.dataset.style;
     if (!voice) return;
 
     const btn = this._dom.btnSave;
@@ -525,7 +584,7 @@ class TtsPlayer {
       const res = await fetch('/api/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voice }),
+        body: JSON.stringify({ voice, style }),
       });
 
       if (!res.ok) {

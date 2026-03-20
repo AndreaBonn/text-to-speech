@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from converters import file_a_testo
-from config import EDGE_VOICES, PIPER_VOICES, VOICE_MODEL, VOICE_JSON
+from config import EDGE_VOICES, PIPER_VOICES, VOICE_MODEL, VOICE_JSON, READING_STYLES, DEFAULT_STYLE
 from synthesis import sintetizza_edge, sintetizza_piper, scarica_voce_piper
 
 log = logging.getLogger(__name__)
@@ -102,45 +102,45 @@ class TTSEngine:
             self._cache.clear()
         return paragraphs
 
-    def get_audio(self, index: int, voice: str) -> bytes:
+    def get_audio(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Restituisce MP3 bytes per il paragrafo. Usa cache se disponibile."""
         if index < 0 or index >= len(self._paragraphs):
             raise IndexError(f"Paragrafo {index} fuori range")
 
-        cache_key = f"{voice}:{index}"
+        cache_key = f"{voice}:{style}:{index}"
         with self._lock:
             if cache_key in self._cache:
                 self._cache.move_to_end(cache_key)
                 return self._cache[cache_key]
 
-        mp3_bytes = self._synthesize(index, voice)
+        mp3_bytes = self._synthesize(index, voice, style)
         self._put_cache(cache_key, mp3_bytes)
 
         # Prefetch prossimo paragrafo in background
         if index + 1 < len(self._paragraphs):
-            self.prefetch(index + 1, voice)
+            self.prefetch(index + 1, voice, style)
 
         return mp3_bytes
 
-    def prefetch(self, index: int, voice: str):
+    def prefetch(self, index: int, voice: str, style: str = DEFAULT_STYLE):
         """Lancia sintesi del paragrafo in background (thread pool)."""
         if index < 0 or index >= len(self._paragraphs):
             return
-        cache_key = f"{voice}:{index}"
+        cache_key = f"{voice}:{style}:{index}"
         with self._lock:
             if cache_key in self._cache:
                 return
 
         def _do_prefetch():
             try:
-                mp3 = self._synthesize(index, voice)
+                mp3 = self._synthesize(index, voice, style)
                 self._put_cache(cache_key, mp3)
             except Exception:
                 log.warning("Prefetch paragrafo %d fallito", index, exc_info=True)
 
         _executor.submit(_do_prefetch)
 
-    def save_all(self, voice: str) -> bytes:
+    def save_all(self, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Sintetizza tutti i paragrafi e restituisce MP3 concatenato.
 
         Usa uno snapshot della lista paragrafi per evitare corruzione
@@ -151,10 +151,10 @@ class TTSEngine:
 
         all_mp3 = []
         for i in range(len(snapshot)):
-            all_mp3.append(self.get_audio(i, voice))
+            all_mp3.append(self.get_audio(i, voice, style))
         return _concat_mp3_bytes(all_mp3)
 
-    def _synthesize(self, index: int, voice: str) -> bytes:
+    def _synthesize(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Sintetizza un paragrafo. Restituisce sempre MP3."""
         with self._lock:
             if index < 0 or index >= len(self._paragraphs):
@@ -163,10 +163,14 @@ class TTSEngine:
 
         if voice in EDGE_VOICES:
             voice_id = EDGE_VOICES[voice]
-            future = asyncio.run_coroutine_threadsafe(sintetizza_edge(voice_id, text), _async_loop)
+            params = READING_STYLES.get(style, READING_STYLES[DEFAULT_STYLE])
+            future = asyncio.run_coroutine_threadsafe(
+                sintetizza_edge(voice_id, text, rate=params["rate"], pitch=params["pitch"]),
+                _async_loop,
+            )
             return future.result(timeout=60)
 
-        # Piper (offline) — carica il modello lazy
+        # Piper (offline) — carica il modello lazy, stile ignorato
         if self._piper_voice is None:
             self._load_piper()
 

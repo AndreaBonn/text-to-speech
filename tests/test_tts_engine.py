@@ -107,7 +107,7 @@ class TestTTSEngineLoadFile:
         """Caricare un nuovo file deve svuotare la cache."""
         # Arrange — carica primo testo e popola cache manualmente
         engine.load_text("Vecchio testo.", "old.md")
-        engine._put_cache("giuseppe:0", b"fake_mp3")
+        engine._put_cache("giuseppe:neutro:0", b"fake_mp3")
         assert len(engine._cache) == 1
 
         # Act — carica nuovo testo
@@ -166,17 +166,17 @@ class TestTTSEngineCache:
     def test_cache_move_to_end_su_accesso(self, engine_con_testo):
         """Accedere a un elemento in cache deve spostarlo in fondo (MRU)."""
         # Arrange — popola cache con 3 elementi
-        engine_con_testo._put_cache("giuseppe:0", b"mp3_0")
-        engine_con_testo._put_cache("giuseppe:1", b"mp3_1")
-        engine_con_testo._put_cache("giuseppe:2", b"mp3_2")
+        engine_con_testo._put_cache("giuseppe:neutro:0", b"mp3_0")
+        engine_con_testo._put_cache("giuseppe:neutro:1", b"mp3_1")
+        engine_con_testo._put_cache("giuseppe:neutro:2", b"mp3_2")
 
         # Act — accedi al primo elemento (dovrebbe spostarlo in fondo)
         with patch.object(engine_con_testo, "_synthesize", return_value=b"mp3_0"):
             engine_con_testo.get_audio(0, "giuseppe")
 
-        # Assert — "giuseppe:0" deve essere l'ultimo (MRU)
+        # Assert — "giuseppe:neutro:0" deve essere l'ultimo (MRU)
         keys = list(engine_con_testo._cache.keys())
-        assert keys[-1] == "giuseppe:0"
+        assert keys[-1] == "giuseppe:neutro:0"
 
     def test_clear_cache_svuota_completamente(self, engine):
         """_clear_cache deve rimuovere tutti gli elementi."""
@@ -268,7 +268,7 @@ class TestTTSEngineSaveAll:
         with patch.object(
             engine_con_testo,
             "_synthesize",
-            side_effect=lambda i, v: mp3_chunks[i],
+            side_effect=lambda i, v, s: mp3_chunks[i],
         ):
             # Act
             risultato = engine_con_testo.save_all("giuseppe")
@@ -279,10 +279,10 @@ class TestTTSEngineSaveAll:
     def test_save_all_usa_cache_se_disponibile(self, engine_con_testo):
         """save_all deve usare la cache per i paragrafi già sintetizzati."""
         # Arrange — pre-popola cache per paragrafo 0
-        engine_con_testo._put_cache("giuseppe:0", b"cached_0")
+        engine_con_testo._put_cache("giuseppe:neutro:0", b"cached_0")
         call_count = 0
 
-        def fake_synthesize(i, v):
+        def fake_synthesize(i, v, s):
             nonlocal call_count
             call_count += 1
             return f"synth_{i}".encode()
@@ -326,7 +326,7 @@ class TestTTSEnginePrefetch:
     def test_prefetch_skip_se_gia_in_cache(self, engine_con_testo):
         """Se il paragrafo è già in cache, il prefetch non deve fare nulla."""
         # Arrange
-        engine_con_testo._put_cache("giuseppe:0", b"cached")
+        engine_con_testo._put_cache("giuseppe:neutro:0", b"cached")
 
         with patch.object(engine_con_testo, "_synthesize") as mock_synth:
             # Act
@@ -355,8 +355,8 @@ class TestTTSEnginePrefetch:
             time.sleep(0.5)
 
         # Assert
-        assert "giuseppe:0" in engine_con_testo._cache
-        assert engine_con_testo._cache["giuseppe:0"] == fake_mp3
+        assert "giuseppe:neutro:0" in engine_con_testo._cache
+        assert engine_con_testo._cache["giuseppe:neutro:0"] == fake_mp3
 
 
 # ===========================================================================
@@ -377,7 +377,7 @@ class TestTTSEngineGetAudioIntegration:
             engine_con_testo.get_audio(0, "giuseppe")
 
         # Assert — prefetch chiamato per il paragrafo 1
-        mock_prefetch.assert_called_once_with(1, "giuseppe")
+        mock_prefetch.assert_called_once_with(1, "giuseppe", "neutro")
 
     def test_get_audio_no_prefetch_su_ultimo_paragrafo(self, engine_con_testo):
         """L'ultimo paragrafo non deve triggerare il prefetch."""
@@ -397,7 +397,7 @@ class TestTTSEngineGetAudioIntegration:
         """Voci diverse devono avere entry di cache separate."""
 
         # Arrange
-        def fake_synth(idx, voice):
+        def fake_synth(idx, voice, style):
             return f"mp3_{voice}".encode()
 
         with patch.object(engine_con_testo, "_synthesize", side_effect=fake_synth):
@@ -407,8 +407,8 @@ class TestTTSEngineGetAudioIntegration:
 
         # Assert
         assert audio_g != audio_i
-        assert "giuseppe:0" in engine_con_testo._cache
-        assert "isabella:0" in engine_con_testo._cache
+        assert "giuseppe:neutro:0" in engine_con_testo._cache
+        assert "isabella:neutro:0" in engine_con_testo._cache
 
 
 # ===========================================================================

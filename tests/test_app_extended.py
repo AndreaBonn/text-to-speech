@@ -185,6 +185,7 @@ class TestAudioEndpointSuccess:
         """GET /api/audio/0?voice=isabella deve usare la voce specificata."""
         # Arrange
         import app as flask_app
+        from config import DEFAULT_STYLE
 
         fake_mp3 = b"mp3_isabella"
 
@@ -194,7 +195,7 @@ class TestAudioEndpointSuccess:
 
         # Assert
         assert response.status_code == 200
-        mock.assert_called_once_with(1, "isabella")
+        mock.assert_called_once_with(1, "isabella", DEFAULT_STYLE)
 
     def test_audio_paragrafo_inesistente_404(self, client_con_testo):
         """GET /api/audio/999 deve restituire 404."""
@@ -241,6 +242,7 @@ class TestPrefetchEndpoint:
         """GET /api/prefetch/1 deve restituire status ok."""
         # Arrange
         import app as flask_app
+        from config import DEFAULT_STYLE
 
         with patch.object(flask_app.engine, "prefetch") as mock_pf:
             # Act
@@ -250,13 +252,13 @@ class TestPrefetchEndpoint:
         assert response.status_code == 200
         data = response.get_json()
         assert data["status"] == "ok"
-        mock_pf.assert_called_once_with(1, "giuseppe")
+        mock_pf.assert_called_once_with(1, "giuseppe", DEFAULT_STYLE)
 
     def test_prefetch_usa_voce_default(self, client_con_testo):
         """Senza parametro voice, deve usare la voce di default."""
         # Arrange
         import app as flask_app
-        from config import DEFAULT_VOICE
+        from config import DEFAULT_VOICE, DEFAULT_STYLE
 
         with patch.object(flask_app.engine, "prefetch") as mock_pf:
             # Act
@@ -264,7 +266,7 @@ class TestPrefetchEndpoint:
 
         # Assert
         assert response.status_code == 200
-        mock_pf.assert_called_once_with(0, DEFAULT_VOICE)
+        mock_pf.assert_called_once_with(0, DEFAULT_VOICE, DEFAULT_STYLE)
 
 
 # ===========================================================================

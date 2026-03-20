@@ -342,7 +342,7 @@ class TestTTSEngine:
         mp3_giuseppe = b"mp3_giuseppe"
         mp3_isabella = b"mp3_isabella"
 
-        def fake_synthesize(index, voice):
+        def fake_synthesize(index, voice, style):
             return mp3_giuseppe if voice == "giuseppe" else mp3_isabella
 
         with patch.object(engine, "_synthesize", side_effect=fake_synthesize):
@@ -412,7 +412,7 @@ class TestSaveAll:
 
         call_count = 0
 
-        def fake_get_audio(idx, voice):
+        def fake_get_audio(idx, voice, style):
             nonlocal call_count
             call_count += 1
             return f"mp3_{idx}".encode()
