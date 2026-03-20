@@ -7,16 +7,12 @@ scarica_voce_piper, concatena_wav, mostra_paragrafo.
 """
 
 import io
-import sys
 import tempfile
 import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 # ===========================================================================
 # Test — Costanti e configurazione voci
@@ -28,7 +24,7 @@ class TestVoiceConstants:
 
     def test_all_voices_contains_edge_and_piper(self):
         """ALL_VOICES deve contenere tutte le voci Edge + Piper."""
-        from leggi import ALL_VOICES, EDGE_VOICES, PIPER_VOICES
+        from config import ALL_VOICES, EDGE_VOICES, PIPER_VOICES
 
         # Assert
         for voice in EDGE_VOICES:
@@ -38,48 +34,48 @@ class TestVoiceConstants:
 
     def test_all_voices_is_sorted(self):
         """ALL_VOICES deve essere ordinata alfabeticamente."""
-        from leggi import ALL_VOICES
+        from config import ALL_VOICES
 
         # Assert
         assert ALL_VOICES == sorted(ALL_VOICES)
 
     def test_all_voices_no_duplicates(self):
         """ALL_VOICES non deve avere duplicati."""
-        from leggi import ALL_VOICES
+        from config import ALL_VOICES
 
         # Assert
         assert len(ALL_VOICES) == len(set(ALL_VOICES))
 
     def test_default_voice_exists(self):
         """DEFAULT_VOICE deve essere presente in ALL_VOICES."""
-        from leggi import ALL_VOICES, DEFAULT_VOICE
+        from config import ALL_VOICES, DEFAULT_VOICE
 
         # Assert
         assert DEFAULT_VOICE in ALL_VOICES
 
     def test_default_voice_is_edge(self):
         """DEFAULT_VOICE deve essere una voce Edge (richiede internet)."""
-        from leggi import DEFAULT_VOICE, EDGE_VOICES
+        from config import DEFAULT_VOICE, EDGE_VOICES
 
         # Assert — giuseppe è Edge TTS
         assert DEFAULT_VOICE in EDGE_VOICES
 
     def test_edge_voices_have_valid_ids(self):
         """Gli ID delle voci Edge devono seguire il pattern it-IT-*Neural."""
-        from leggi import EDGE_VOICES
+        from config import EDGE_VOICES
 
         # Assert
         for name, edge_id in EDGE_VOICES.items():
-            assert edge_id.startswith("it-IT-"), (
-                f"Voce '{name}' ha ID '{edge_id}' che non inizia con 'it-IT-'"
-            )
-            assert edge_id.endswith("Neural"), (
-                f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
-            )
+            assert edge_id.startswith(
+                "it-IT-"
+            ), f"Voce '{name}' ha ID '{edge_id}' che non inizia con 'it-IT-'"
+            assert edge_id.endswith(
+                "Neural"
+            ), f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
 
     def test_voice_urls_point_to_existing_files(self):
         """VOICE_URLS deve avere entry per modello e config JSON."""
-        from leggi import VOICE_URLS, VOICE_MODEL, VOICE_JSON
+        from config import VOICE_URLS, VOICE_MODEL, VOICE_JSON
 
         # Assert
         assert VOICE_MODEL in VOICE_URLS
@@ -87,7 +83,7 @@ class TestVoiceConstants:
 
     def test_voice_model_path_uses_home_directory(self):
         """VOICE_DIR deve essere sotto la home directory dell'utente."""
-        from leggi import VOICE_DIR
+        from config import VOICE_DIR
 
         # Assert
         assert str(VOICE_DIR).startswith(str(Path.home()))
@@ -275,8 +271,9 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 0
             mock_result.stdout = "Titolo\n\nTesto semplice."
 
-            with patch("shutil.which", return_value="/usr/bin/pandoc"), \
-                 patch("subprocess.run", return_value=mock_result) as mock_run:
+            with patch("shutil.which", return_value="/usr/bin/pandoc"), patch(
+                "subprocess.run", return_value=mock_result
+            ) as mock_run:
                 # Act
                 risultato = markdown_a_testo(tmp_path)
 
@@ -302,8 +299,9 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 1  # pandoc fallisce
             mock_result.stdout = ""
 
-            with patch("shutil.which", return_value="/usr/bin/pandoc"), \
-                 patch("subprocess.run", return_value=mock_result):
+            with patch("shutil.which", return_value="/usr/bin/pandoc"), patch(
+                "subprocess.run", return_value=mock_result
+            ):
                 # Act
                 risultato = markdown_a_testo(tmp_path)
 
@@ -391,8 +389,7 @@ class TestScaricaVocePiper:
         from leggi import scarica_voce_piper
 
         # Arrange & Act
-        with patch("leggi.VOICE_DIR") as mock_dir, \
-             patch("leggi.VOICE_URLS", {}) as mock_urls:
+        with patch("leggi.VOICE_DIR") as mock_dir, patch("leggi.VOICE_URLS", {}) as mock_urls:
             mock_dir.mkdir = MagicMock()
             # Nessun URL da scaricare
             scarica_voce_piper()
@@ -413,11 +410,13 @@ class TestScaricaVocePiper:
         mock_path_json.exists.return_value = True
         mock_path_json.name = "model.onnx.json"
 
-        with patch("leggi.VOICE_DIR") as mock_dir, \
-             patch("leggi.VOICE_URLS", {
-                 mock_path_model: "http://example.com/model",
-                 mock_path_json: "http://example.com/model.json",
-             }):
+        with patch("leggi.VOICE_DIR") as mock_dir, patch(
+            "leggi.VOICE_URLS",
+            {
+                mock_path_model: "http://example.com/model",
+                mock_path_json: "http://example.com/model.json",
+            },
+        ):
             # Act
             scarica_voce_piper()
 

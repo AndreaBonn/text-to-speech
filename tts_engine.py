@@ -13,15 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from converters import file_a_testo
-from leggi import (
-    EDGE_VOICES,
-    PIPER_VOICES,
-    VOICE_MODEL,
-    VOICE_JSON,
-    sintetizza_edge,
-    sintetizza_piper,
-    scarica_voce_piper,
-)
+from config import EDGE_VOICES, PIPER_VOICES, VOICE_MODEL, VOICE_JSON
+from leggi import sintetizza_edge, sintetizza_piper, scarica_voce_piper
 
 log = logging.getLogger(__name__)
 

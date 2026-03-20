@@ -5,17 +5,13 @@ Test per il modulo converters.py: dispatcher e convertitori di formato.
 Ogni convertitore è testato con file reali creati in tmp_path.
 """
 
-import sys
 import zipfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from converters import file_a_testo, SUPPORTED_EXTENSIONS
-
 
 # ===========================================================================
 # Test — Dispatcher file_a_testo

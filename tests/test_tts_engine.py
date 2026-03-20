@@ -5,7 +5,6 @@ Test per tts_engine.py: cache LRU, sintesi, prefetch, save_all, load_file.
 Le dipendenze esterne (edge-tts, piper, ffmpeg) sono sempre mockate.
 """
 
-import sys
 import tempfile
 import threading
 import time
@@ -14,20 +13,9 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-
 # ===========================================================================
 # Fixture
 # ===========================================================================
-
-
-@pytest.fixture()
-def engine():
-    """Crea un TTSEngine fresco per ogni test."""
-    from tts_engine import TTSEngine
-
-    return TTSEngine()
 
 
 @pytest.fixture()
@@ -212,18 +200,22 @@ class TestTTSEngineCache:
 class TestTTSEngineSynthesize:
     """Test per il dispatch di sintesi verso Edge o Piper."""
 
-    def test_synthesize_edge_chiama_asyncio_run(self, engine_con_testo):
-        """Per voci Edge, deve chiamare asyncio.run(sintetizza_edge(...))."""
+    def test_synthesize_edge_usa_async_loop(self, engine_con_testo):
+        """Per voci Edge, deve usare run_coroutine_threadsafe con _async_loop."""
         # Arrange
         fake_mp3 = b"ID3\x00edge_audio"
 
-        with patch("tts_engine.asyncio.run", return_value=fake_mp3) as mock_run, \
-             patch("tts_engine.sintetizza_edge") as mock_edge:
+        with patch("tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
+            mock_future = MagicMock()
+            mock_future.result.return_value = fake_mp3
+            mock_rcs.return_value = mock_future
+
             # Act
             risultato = engine_con_testo._synthesize(0, "giuseppe")
 
         # Assert
-        mock_run.assert_called_once()
+        mock_rcs.assert_called_once()
+        mock_future.result.assert_called_once_with(timeout=60)
         assert risultato == fake_mp3
 
     def test_synthesize_piper_carica_modello_lazy(self, engine_con_testo):
@@ -232,9 +224,9 @@ class TestTTSEngineSynthesize:
         fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
         fake_mp3 = b"ID3\x00piper_audio"
 
-        with patch.object(engine_con_testo, "_load_piper") as mock_load, \
-             patch("tts_engine.sintetizza_piper", return_value=fake_wav), \
-             patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3):
+        with patch.object(engine_con_testo, "_load_piper") as mock_load, patch(
+            "tts_engine.sintetizza_piper", return_value=fake_wav
+        ), patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3):
             # Act
             risultato = engine_con_testo._synthesize(0, "paola")
 
@@ -250,9 +242,9 @@ class TestTTSEngineSynthesize:
         fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
         fake_mp3 = b"ID3\x00piper_audio"
 
-        with patch("tts_engine.sintetizza_piper", return_value=fake_wav), \
-             patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3), \
-             patch.object(engine_con_testo, "_load_piper") as mock_load:
+        with patch("tts_engine.sintetizza_piper", return_value=fake_wav), patch(
+            "tts_engine._wav_to_mp3_bytes", return_value=fake_mp3
+        ), patch.object(engine_con_testo, "_load_piper") as mock_load:
             # Act
             engine_con_testo._synthesize(0, "paola")
 
@@ -295,9 +287,7 @@ class TestTTSEngineSaveAll:
             call_count += 1
             return f"synth_{i}".encode()
 
-        with patch.object(
-            engine_con_testo, "_synthesize", side_effect=fake_synthesize
-        ):
+        with patch.object(engine_con_testo, "_synthesize", side_effect=fake_synthesize):
             # Act
             risultato = engine_con_testo.save_all("giuseppe")
 
@@ -358,9 +348,7 @@ class TestTTSEnginePrefetch:
         # Arrange
         fake_mp3 = b"prefetched_mp3"
 
-        with patch.object(
-            engine_con_testo, "_synthesize", return_value=fake_mp3
-        ):
+        with patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3):
             # Act
             engine_con_testo.prefetch(0, "giuseppe")
             # Attendi il completamento del thread
@@ -382,9 +370,9 @@ class TestTTSEngineGetAudioIntegration:
     def test_get_audio_lancia_prefetch_per_prossimo(self, engine_con_testo):
         """get_audio deve lanciare il prefetch del paragrafo successivo."""
         # Arrange
-        with patch.object(
-            engine_con_testo, "_synthesize", return_value=b"mp3"
-        ), patch.object(engine_con_testo, "prefetch") as mock_prefetch:
+        with patch.object(engine_con_testo, "_synthesize", return_value=b"mp3"), patch.object(
+            engine_con_testo, "prefetch"
+        ) as mock_prefetch:
             # Act
             engine_con_testo.get_audio(0, "giuseppe")
 
@@ -396,9 +384,9 @@ class TestTTSEngineGetAudioIntegration:
         # Arrange
         ultimo_idx = len(engine_con_testo.paragraphs) - 1
 
-        with patch.object(
-            engine_con_testo, "_synthesize", return_value=b"mp3"
-        ), patch.object(engine_con_testo, "prefetch") as mock_prefetch:
+        with patch.object(engine_con_testo, "_synthesize", return_value=b"mp3"), patch.object(
+            engine_con_testo, "prefetch"
+        ) as mock_prefetch:
             # Act
             engine_con_testo.get_audio(ultimo_idx, "giuseppe")
 
@@ -407,13 +395,12 @@ class TestTTSEngineGetAudioIntegration:
 
     def test_get_audio_voci_diverse_non_condividono_cache(self, engine_con_testo):
         """Voci diverse devono avere entry di cache separate."""
+
         # Arrange
         def fake_synth(idx, voice):
             return f"mp3_{voice}".encode()
 
-        with patch.object(
-            engine_con_testo, "_synthesize", side_effect=fake_synth
-        ):
+        with patch.object(engine_con_testo, "_synthesize", side_effect=fake_synth):
             # Act
             audio_g = engine_con_testo.get_audio(0, "giuseppe")
             audio_i = engine_con_testo.get_audio(0, "isabella")
@@ -442,8 +429,9 @@ class TestTTSEngineLoadPiper:
 
         # PiperVoice viene importato lazy dentro _load_piper con
         # "from piper import PiperVoice", quindi patchiamo il modulo piper
-        with patch("tts_engine.scarica_voce_piper"), \
-             patch.dict("sys.modules", {"piper": mock_piper_module}):
+        with patch("tts_engine.scarica_voce_piper"), patch.dict(
+            "sys.modules", {"piper": mock_piper_module}
+        ):
             # Act — chiama due volte
             engine._load_piper()
             engine._load_piper()

@@ -101,12 +101,17 @@ scaricato automaticamente al primo utilizzo, circa 60 MB).
 text-to-speech/
 ├── app.py              # Server Flask per interfaccia web
 ├── tts_engine.py       # Motore TTS con cache e prefetch
+├── config.py           # Configurazione voci, path modelli, costanti
 ├── leggi.py            # CLI: lettura da terminale
 ├── converters.py       # Convertitori formato → testo piano
+├── static/
+│   ├── style.css       # Design system (Inchiostro e Ambra)
+│   └── player.js       # Player audio JavaScript
 ├── templates/
-│   └── index.html      # Interfaccia web (player audio)
+│   └── index.html      # Interfaccia web (solo markup HTML)
 ├── tests/
-│   └── test_app.py     # Test suite (pytest)
+│   ├── conftest.py     # Fixture condivise (client, engine)
+│   └── test_*.py       # Test suite (pytest)
 ├── docs/               # Documentazione
 ├── requirements.txt    # Dipendenze Python
 ├── CLAUDE.md           # Istruzioni per Claude Code

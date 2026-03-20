@@ -7,7 +7,6 @@ per garantire test isolati e veloci.
 """
 
 import io
-import sys
 import tempfile
 import threading
 import time
@@ -15,14 +14,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# ---------------------------------------------------------------------------
-# Patch globale: impedisce che leggi tenti import di edge_tts/piper
-# a livello di modulo durante il caricamento dei test.
-# ---------------------------------------------------------------------------
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 # ===========================================================================
 # Test — leggi.py
@@ -123,21 +114,6 @@ class TestMarkdownATesto:
 # ===========================================================================
 # Test — app.py (Flask test client)
 # ===========================================================================
-
-
-@pytest.fixture()
-def client():
-    """Crea un Flask test client con engine resettato a ogni test."""
-    import app as flask_app
-
-    flask_app.app.config["TESTING"] = True
-    # Resetta lo stato interno dell'engine tra i test
-    flask_app.engine._paragraphs = []
-    flask_app.engine._filename = ""
-    flask_app.engine._cache.clear()
-
-    with flask_app.app.test_client() as c:
-        yield c
 
 
 class TestIndexEndpoint:
@@ -281,14 +257,6 @@ class TestSaveEndpoint:
 # ===========================================================================
 # Test — tts_engine.py
 # ===========================================================================
-
-
-@pytest.fixture()
-def engine():
-    """Crea un TTSEngine fresco per ogni test."""
-    from tts_engine import TTSEngine
-
-    return TTSEngine()
 
 
 class TestTTSEngine:

@@ -17,7 +17,7 @@ from urllib.parse import quote
 from flask import Flask, jsonify, render_template, request, Response
 
 from converters import SUPPORTED_EXTENSIONS
-from leggi import EDGE_VOICES, PIPER_VOICES, ALL_VOICES, DEFAULT_VOICE
+from config import EDGE_VOICES, PIPER_VOICES, ALL_VOICES, DEFAULT_VOICE
 from tts_engine import TTSEngine
 
 app = Flask(__name__)
@@ -52,8 +52,8 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self'; "
+        "style-src 'self' https://fonts.googleapis.com; "
         "font-src https://fonts.gstatic.com; "
         "media-src 'self' blob:"
     )
