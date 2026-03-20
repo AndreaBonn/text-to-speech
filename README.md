@@ -33,7 +33,7 @@ sudo apt install ffmpeg alsa-utils pandoc
 ### Progetto
 
 ```bash
-git clone <url-repo>
+git clone https://github.com/AndreaBonn/text-to-speech.git
 cd text-to-speech
 python -m venv venv
 source venv/bin/activate
