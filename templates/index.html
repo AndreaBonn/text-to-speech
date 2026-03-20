@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTS Reader</title>
+  <style>
+    /* ============================================================
+       RESET E BASE
+    ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg:           #1a1a2e;
+      --card:         #16213e;
+      --controls:     #0f3460;
+      --accent:       #e94560;
+      --accent-hover: #c73652;
+      --text:         #eaeaea;
+      --text-muted:   #8892a4;
+      --text-dim:     #5a637a;
+      --border:       rgba(255, 255, 255, 0.08);
+      --progress-bg:  rgba(255, 255, 255, 0.1);
+      --progress-fg:  #e94560;
+      --btn-bg:       #0f3460;
+      --btn-hover:    #1a4a7a;
+      --btn-active:   #0a2a4a;
+      --btn-disabled: rgba(15, 52, 96, 0.4);
+      --error-bg:     rgba(233, 69, 96, 0.15);
+      --error-border: rgba(233, 69, 96, 0.4);
+      --radius-sm:    6px;
+      --radius-md:    10px;
+      --radius-lg:    14px;
+      --shadow:       0 4px 24px rgba(0, 0, 0, 0.4);
+      --transition:   200ms ease;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       TOOLBAR
+    ============================================================ */
+    .toolbar {
+      background-color: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .toolbar__brand {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-right: 4px;
+    }
+
+    .toolbar__sep {
+      width: 1px;
+      height: 24px;
+      background-color: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* File input nascosto con label stilizzato */
+    #file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+    }
+
+    .btn-file {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background-color: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background-color var(--transition), border-color var(--transition);
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .btn-file:hover {
+      background-color: var(--btn-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .btn-file:active {
+      background-color: var(--btn-active);
+    }
+
+    .btn-file svg {
+      flex-shrink: 0;
+    }
+
+    .file-name {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Voce dropdown */
+    .voice-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .voice-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    #voice-select {
+      background-color: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    #voice-select:focus {
+      border-color: var(--accent);
+    }
+
+    /* Bottone salva */
+    .btn-save {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background-color: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background-color var(--transition), opacity var(--transition);
+      white-space: nowrap;
+      margin-left: auto;
+    }
+
+    .btn-save:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-save:active {
+      opacity: 0.85;
+    }
+
+    .btn-save.hidden {
+      display: none;
+    }
+
+    /* ============================================================
+       BANNER ERRORE
+    ============================================================ */
+    .error-banner {
+      background-color: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: #f87a90;
+      padding: 10px 20px;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideDown 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .error-banner.hidden {
+      display: none;
+    }
+
+    .error-banner__msg {
+      flex: 1;
+    }
+
+    .error-banner__close {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 2px;
+      opacity: 0.7;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .error-banner__close:hover {
+      opacity: 1;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-8px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    /* ============================================================
+       AREA TESTO PRINCIPALE
+    ============================================================ */
+    .reader-area {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+      overflow-y: auto;
+    }
+
+    .reader-card {
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 40px 48px;
+      width: 100%;
+      max-width: 800px;
+      box-shadow: var(--shadow);
+    }
+
+    .reader-card--empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      gap: 16px;
+      text-align: center;
+    }
+
+    .empty-icon {
+      color: var(--text-dim);
+      opacity: 0.6;
+    }
+
+    .empty-title {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .empty-sub {
+      font-size: 0.875rem;
+      color: var(--text-dim);
+    }
+
+    .paragraph-text {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.4rem;
+      line-height: 1.8;
+      color: var(--text);
+      max-width: 70ch;
+      margin: 0 auto;
+    }
+
+    .paragraph-text.loading {
+      opacity: 0.5;
+    }
+
+    /* ============================================================
+       BARRA FISSA IN BASSO
+    ============================================================ */
+    .bottom-bar {
+      background-color: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 16px 20px 20px;
+      flex-shrink: 0;
+    }
+
+    /* Progress */
+    .progress-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar-wrapper {
+      flex: 1;
+      height: 6px;
+      background-color: var(--progress-bg);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-bar-wrapper:hover {
+      height: 8px;
+      margin-top: -1px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background-color: var(--progress-fg);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .progress-counter {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      min-width: 110px;
+      text-align: right;
+    }
+
+    /* Player controls */
+    .player-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .player-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      background-color: var(--btn-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background-color var(--transition), border-color var(--transition),
+                  transform var(--transition), opacity var(--transition);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .player-btn:hover:not(:disabled) {
+      background-color: var(--btn-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .player-btn:active:not(:disabled) {
+      background-color: var(--btn-active);
+      transform: scale(0.95);
+    }
+
+    .player-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .player-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Bottone play: piu' grande */
+    .player-btn--play {
+      width: 64px;
+      height: 64px;
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .player-btn--play:hover:not(:disabled) {
+      background-color: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .player-btn--play:active:not(:disabled) {
+      background-color: var(--accent-hover);
+    }
+
+    /* Spinner loading stato */
+    .player-btn--play.is-loading svg {
+      display: none;
+    }
+
+    .player-btn--play.is-loading::after {
+      content: '';
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Etichette bottoni */
+    .controls-labels {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-align: center;
+      width: 52px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .ctrl-label--play {
+      width: 64px;
+    }
+
+    /* Keyboard hint */
+    .keyboard-hint {
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 10px;
+    }
+
+    .kbd {
+      display: inline-block;
+      background-color: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 3px;
+      padding: 0px 5px;
+      font-size: 0.7rem;
+      font-family: monospace;
+    }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 600px) {
+      .toolbar {
+        gap: 8px;
+        padding: 10px 14px;
+      }
+
+      .toolbar__brand {
+        display: none;
+      }
+
+      .toolbar__sep {
+        display: none;
+      }
+
+      .file-name {
+        max-width: 100px;
+      }
+
+      .reader-card {
+        padding: 24px 20px;
+      }
+
+      .paragraph-text {
+        font-size: 1.15rem;
+        line-height: 1.75;
+      }
+
+      .reader-area {
+        padding: 20px 12px;
+      }
+
+      .bottom-bar {
+        padding: 12px 14px 16px;
+      }
+
+      .player-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .player-btn--play {
+        width: 56px;
+        height: 56px;
+      }
+
+      .ctrl-label {
+        width: 44px;
+        font-size: 0.58rem;
+      }
+
+      .ctrl-label--play {
+        width: 56px;
+      }
+
+      .keyboard-hint {
+        display: none;
+      }
+    }
+
+    @media (max-width: 375px) {
+      .player-controls {
+        gap: 4px;
+      }
+
+      .controls-labels {
+        gap: 4px;
+      }
+    }
+
+    /* ============================================================
+       UTILITA'
+    ============================================================ */
+    .hidden {
+      display: none !important;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Transizione testo paragrafo */
+    .paragraph-text {
+      transition: opacity 0.2s ease;
+    }
+
+    .paragraph-text.fade-out {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       TOOLBAR
+  ============================================================ -->
+  <header class="toolbar" role="banner">
+    <span class="toolbar__brand" aria-hidden="true">TTS Reader</span>
+    <div class="toolbar__sep" aria-hidden="true"></div>
+
+    <!-- File picker -->
+    <input
+      type="file"
+      id="file-input"
+      accept=".md"
+      aria-label="Scegli file Markdown"
+    >
+    <label for="file-input" class="btn-file">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Scegli file .md
+    </label>
+    <span id="file-name" class="file-name" aria-live="polite" aria-atomic="true"></span>
+
+    <div class="toolbar__sep" aria-hidden="true"></div>
+
+    <!-- Selezione voce -->
+    <div class="voice-wrapper">
+      <label for="voice-select" class="voice-label">Voce:</label>
+      <select id="voice-select" aria-label="Selezione voce">
+        <option value="">Caricamento...</option>
+      </select>
+    </div>
+
+    <!-- Bottone salva -->
+    <a
+      id="btn-save"
+      class="btn-save hidden"
+      href="#"
+      aria-label="Scarica audio completo"
+      title="Scarica l'intero testo come MP3"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round"
+           stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Salva MP3
+    </a>
+  </header>
+
+  <!-- ============================================================
+       BANNER ERRORE
+  ============================================================ -->
+  <div
+    id="error-banner"
+    class="error-banner hidden"
+    role="alert"
+    aria-live="assertive"
+    aria-atomic="true"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round"
+         stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12" y2="16"/>
+    </svg>
+    <span id="error-banner-msg" class="error-banner__msg"></span>
+    <button
+      class="error-banner__close"
+      id="btn-close-error"
+      aria-label="Chiudi messaggio di errore"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+           aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ============================================================
+       AREA DI LETTURA
+  ============================================================ -->
+  <main class="reader-area" id="reader-area" role="main">
+    <div class="reader-card reader-card--empty" id="reader-card">
+      <!-- Stato iniziale vuoto -->
+      <div id="empty-state">
+        <svg class="empty-icon" width="56" height="56" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <p class="empty-title">Carica un file Markdown per iniziare</p>
+        <p class="empty-sub">Scegli un file .md dalla toolbar in alto</p>
+      </div>
+
+      <!-- Paragrafo attivo (nascosto inizialmente) -->
+      <p
+        id="paragraph-text"
+        class="paragraph-text hidden"
+        aria-live="polite"
+        aria-atomic="true"
+      ></p>
+    </div>
+  </main>
+
+  <!-- ============================================================
+       BARRA INFERIORE: PROGRESS + CONTROLS
+  ============================================================ -->
+  <footer class="bottom-bar" role="contentinfo">
+
+    <!-- Progress bar -->
+    <div class="progress-section">
+      <div
+        class="progress-bar-wrapper"
+        id="progress-bar"
+        role="slider"
+        aria-label="Avanzamento lettura"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        tabindex="0"
+        title="Clicca per saltare a un punto del testo"
+      >
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-counter" id="progress-counter" aria-live="polite" aria-atomic="true">
+        Paragrafo — / —
+      </div>
+    </div>
+
+    <!-- Bottoni player -->
+    <div class="player-controls" role="group" aria-label="Controlli riproduzione">
+
+      <!-- Inizio -->
+      <button
+        class="player-btn"
+        id="btn-start"
+        aria-label="Torna all'inizio"
+        title="Vai al primo paragrafo"
+        disabled
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="5" y="5" width="2" height="14" rx="1"/>
+          <polygon points="8,12 20,5 20,19"/>
+        </svg>
+      </button>
+
+      <!-- Precedente -->
+      <button
+        class="player-btn"
+        id="btn-prev"
+        aria-label="Paragrafo precedente"
+        title="Paragrafo precedente (freccia sinistra)"
+        disabled
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <polygon points="19,5 7,12 19,19"/>
+          <polygon points="11,5 5,8.5 5,15.5 11,19"/>
+        </svg>
+      </button>
+
+      <!-- Play / Pausa -->
+      <button
+        class="player-btn player-btn--play"
+        id="btn-play"
+        aria-label="Riproduci"
+        title="Riproduci / Pausa (Spazio)"
+        disabled
+      >
+        <!-- Icona Play -->
+        <svg id="icon-play" width="26" height="26" viewBox="0 0 24 24"
+             fill="currentColor" aria-hidden="true">
+          <polygon points="5,3 19,12 5,21"/>
+        </svg>
+        <!-- Icona Pausa (nascosta) -->
+        <svg id="icon-pause" width="26" height="26" viewBox="0 0 24 24"
+             fill="currentColor" aria-hidden="true" class="hidden">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>
+      </button>
+
+      <!-- Stop -->
+      <button
+        class="player-btn"
+        id="btn-stop"
+        aria-label="Stop"
+        title="Stop e torna al primo paragrafo"
+        disabled
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="5" y="5" width="14" height="14" rx="2"/>
+        </svg>
+      </button>
+
+      <!-- Successivo -->
+      <button
+        class="player-btn"
+        id="btn-next"
+        aria-label="Paragrafo successivo"
+        title="Paragrafo successivo (freccia destra)"
+        disabled
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <polygon points="5,5 17,12 5,19"/>
+          <polygon points="13,5 19,8.5 19,15.5 13,19"/>
+        </svg>
+      </button>
+
+      <!-- Ripeti -->
+      <button
+        class="player-btn"
+        id="btn-repeat"
+        aria-label="Ripeti paragrafo"
+        title="Ripeti paragrafo corrente (R)"
+        disabled
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </button>
+
+    </div>
+
+    <!-- Etichette -->
+    <div class="controls-labels" aria-hidden="true">
+      <span class="ctrl-label">Inizio</span>
+      <span class="ctrl-label">Prec.</span>
+      <span class="ctrl-label ctrl-label--play">Play / Pausa</span>
+      <span class="ctrl-label">Stop</span>
+      <span class="ctrl-label">Succ.</span>
+      <span class="ctrl-label">Ripeti</span>
+    </div>
+
+    <!-- Keyboard hint -->
+    <p class="keyboard-hint" aria-label="Scorciatoie da tastiera disponibili">
+      <kbd class="kbd">Spazio</kbd> Play/Pausa &nbsp;
+      <kbd class="kbd">&larr;</kbd> Precedente &nbsp;
+      <kbd class="kbd">&rarr;</kbd> Successivo &nbsp;
+      <kbd class="kbd">R</kbd> Ripeti
+    </p>
+
+  </footer>
+
+  <!-- ============================================================
+       JAVASCRIPT
+  ============================================================ -->
+  <script>
+  'use strict';
+
+  /* ============================================================
+     TTSPLAYER — classe principale
+  ============================================================ */
+  class TtsPlayer {
+    constructor() {
+      /* Dati */
+      this.paragraphs  = [];   // [{idx, text, chars}]
+      this.currentIdx  = 0;
+      this.totalCount  = 0;
+      this.currentVoice = '';
+      this.filename    = '';
+
+      /* Stato player */
+      this._state      = 'idle'; // 'idle' | 'loading' | 'playing' | 'paused'
+
+      /* Audio element unico */
+      this._audio      = new Audio();
+      this._audio.preload = 'auto';
+
+      /* Prefetch blob */
+      this._prefetchBlob = null;   // Blob del paragrafo N+1
+      this._prefetchIdx  = -1;     // Indice a cui si riferisce il blob
+      this._prefetchUrl  = null;   // ObjectURL attivo
+
+      /* Bind event handler audio */
+      this._audio.addEventListener('ended',   () => this._onEnded());
+      this._audio.addEventListener('error',   () => this._onAudioError());
+      this._audio.addEventListener('playing', () => this._onPlaying());
+      this._audio.addEventListener('pause',   () => this._onPaused());
+
+      /* Cache DOM */
+      this._dom = {
+        emptyState:      document.getElementById('empty-state'),
+        paragraphText:   document.getElementById('paragraph-text'),
+        readerCard:      document.getElementById('reader-card'),
+        progressBar:     document.getElementById('progress-bar'),
+        progressFill:    document.getElementById('progress-fill'),
+        progressCounter: document.getElementById('progress-counter'),
+        btnPlay:         document.getElementById('btn-play'),
+        btnStop:         document.getElementById('btn-stop'),
+        btnPrev:         document.getElementById('btn-prev'),
+        btnNext:         document.getElementById('btn-next'),
+        btnStart:        document.getElementById('btn-start'),
+        btnRepeat:       document.getElementById('btn-repeat'),
+        iconPlay:        document.getElementById('icon-play'),
+        iconPause:       document.getElementById('icon-pause'),
+        voiceSelect:     document.getElementById('voice-select'),
+        fileInput:       document.getElementById('file-input'),
+        fileName:        document.getElementById('file-name'),
+        btnSave:         document.getElementById('btn-save'),
+        errorBanner:     document.getElementById('error-banner'),
+        errorMsg:        document.getElementById('error-banner-msg'),
+      };
+
+      this._bindUI();
+      this._loadVoices();
+    }
+
+    /* ----------------------------------------------------------
+       INIT: carica voci dal server
+    ---------------------------------------------------------- */
+    async _loadVoices() {
+      try {
+        const res  = await fetch('/api/voices');
+        const data = await res.json();
+        const sel  = this._dom.voiceSelect;
+        sel.innerHTML = '';
+        data.voices.forEach(v => {
+          const opt  = document.createElement('option');
+          opt.value  = v.id;
+          opt.textContent = v.label + (v.multilingual ? ' (multi)' : '');
+          sel.appendChild(opt);
+        });
+        sel.value         = data.default;
+        this.currentVoice = data.default;
+        this._updateSaveLink();
+      } catch (err) {
+        console.error('Errore caricamento voci:', err);
+      }
+    }
+
+    /* ----------------------------------------------------------
+       BIND UI: eventi DOM
+    ---------------------------------------------------------- */
+    _bindUI() {
+      /* File input */
+      this._dom.fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this._dom.fileName.textContent = file.name;
+        const fd = new FormData();
+        fd.append('file', file);
+        this.loadFile(fd);
+      });
+
+      /* Voice select */
+      this._dom.voiceSelect.addEventListener('change', () => {
+        this.currentVoice = this._dom.voiceSelect.value;
+        this._updateSaveLink();
+        /* Svuota prefetch cache se cambia voce */
+        this._clearPrefetch();
+      });
+
+      /* Bottoni player */
+      this._dom.btnPlay.addEventListener('click', () => {
+        if (this._state === 'playing') {
+          this.pause();
+        } else {
+          this.play();
+        }
+      });
+
+      this._dom.btnStop.addEventListener('click',   () => this.stop());
+      this._dom.btnPrev.addEventListener('click',   () => this.prev());
+      this._dom.btnNext.addEventListener('click',   () => this.next());
+      this._dom.btnStart.addEventListener('click',  () => this.goTo(0));
+      this._dom.btnRepeat.addEventListener('click', () => this.repeat());
+
+      /* Progress bar: click per saltare */
+      this._dom.progressBar.addEventListener('click', (e) => {
+        if (!this.totalCount) return;
+        const rect   = this._dom.progressBar.getBoundingClientRect();
+        const ratio  = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        const idx    = Math.round(ratio * (this.totalCount - 1));
+        this.goTo(idx);
+        if (this._state === 'paused' || this._state === 'idle') {
+          this.play();
+        }
+      });
+
+      /* Progress bar: keyboard (slider ARIA) */
+      this._dom.progressBar.addEventListener('keydown', (e) => {
+        if (!this.totalCount) return;
+        if (e.key === 'ArrowRight') { e.preventDefault(); this.next(); }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); this.prev(); }
+        if (e.key === 'Home')       { e.preventDefault(); this.goTo(0); }
+        if (e.key === 'End')        { e.preventDefault(); this.goTo(this.totalCount - 1); }
+      });
+
+      /* Chiudi banner errore */
+      document.getElementById('btn-close-error')
+        .addEventListener('click', () => this._hideError());
+
+      /* Scorciatoie tastiera globali */
+      document.addEventListener('keydown', (e) => {
+        /* Ignora se focus su input/select */
+        const tag = document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+        if (e.code === 'Space') {
+          e.preventDefault();
+          if (this._state === 'playing') { this.pause(); } else { this.play(); }
+        }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); this.prev(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); this.next(); }
+        if (e.key === 'r' || e.key === 'R') { this.repeat(); }
+      });
+    }
+
+    /* ----------------------------------------------------------
+       API PUBBLICA
+    ---------------------------------------------------------- */
+
+    /** Carica un file .md via FormData POST /api/load */
+    async loadFile(formData) {
+      this._setState('loading');
+      this._setPlayIconLoading(true);
+
+      try {
+        const res  = await fetch('/api/load', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Errore nel caricamento del file.');
+        }
+
+        this.paragraphs   = data.paragraphs;
+        this.totalCount   = data.total;
+        this.filename     = data.filename;
+        this.currentIdx   = 0;
+
+        this._clearPrefetch();
+        this._setState('idle');
+        this._setPlayIconLoading(false);
+
+        /* Aggiorna UI */
+        this._dom.emptyState.classList.add('hidden');
+        this._dom.paragraphText.classList.remove('hidden');
+        this._dom.readerCard.classList.remove('reader-card--empty');
+        this._dom.btnSave.classList.remove('hidden');
+        this._updateSaveLink();
+        this.updateUI();
+
+        /* Abilita controlli */
+        this._setControlsEnabled(true);
+
+        /* Avvia prefetch del primo paragrafo (non riproduce) */
+        this.prefetchNext(-1);
+
+      } catch (err) {
+        this._setState('idle');
+        this._setPlayIconLoading(false);
+        this._showError('Errore nel caricamento: ' + err.message);
+      }
+    }
+
+    /** Inizia o riprende la riproduzione */
+    async play() {
+      if (!this.totalCount) return;
+      if (this._state === 'playing') return;
+
+      /* Se in pausa, riprendi semplicemente */
+      if (this._state === 'paused' && this._audio.src && !this._audio.ended) {
+        this._audio.play().catch(() => this._loadAndPlay(this.currentIdx));
+        return;
+      }
+
+      await this._loadAndPlay(this.currentIdx);
+    }
+
+    /** Mette in pausa */
+    pause() {
+      if (this._state !== 'playing') return;
+      this._audio.pause();
+    }
+
+    /** Stop: ferma e torna al paragrafo 0 */
+    stop() {
+      this._audio.pause();
+      this._audio.src = '';
+      this.currentIdx = 0;
+      this._setState('idle');
+      this.updateUI();
+    }
+
+    /** Paragrafo successivo */
+    async next() {
+      if (!this.totalCount) return;
+      if (this.currentIdx >= this.totalCount - 1) return;
+      const wasPlaying = this._state === 'playing';
+      this._audio.pause();
+      this.currentIdx++;
+      this.updateUI();
+      if (wasPlaying) await this._loadAndPlay(this.currentIdx);
+    }
+
+    /** Paragrafo precedente */
+    async prev() {
+      if (!this.totalCount) return;
+      if (this.currentIdx <= 0) return;
+      const wasPlaying = this._state === 'playing';
+      this._audio.pause();
+      this.currentIdx--;
+      this.updateUI();
+      if (wasPlaying) await this._loadAndPlay(this.currentIdx);
+    }
+
+    /** Ripete il paragrafo corrente dall'inizio */
+    async repeat() {
+      if (!this.totalCount) return;
+      this._audio.pause();
+      this._clearPrefetch();
+      await this._loadAndPlay(this.currentIdx);
+    }
+
+    /** Salta a un paragrafo specifico */
+    async goTo(index) {
+      if (!this.totalCount) return;
+      const idx = Math.min(Math.max(0, index), this.totalCount - 1);
+      const wasPlaying = this._state === 'playing';
+      this._audio.pause();
+      this.currentIdx = idx;
+      this.updateUI();
+      if (wasPlaying) await this._loadAndPlay(this.currentIdx);
+    }
+
+    /** Prefetch blob del paragrafo N+1 in background (silenzioso) */
+    async prefetchNext(currentIdx) {
+      const nextIdx = currentIdx + 1;
+      if (nextIdx >= this.totalCount) return;
+      if (this._prefetchIdx === nextIdx) return; /* gia' in cache */
+
+      try {
+        const url = `/api/audio/${nextIdx}?voice=${encodeURIComponent(this.currentVoice)}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const blob = await res.blob();
+
+        /* Revoca il vecchio ObjectURL prima di creare il nuovo */
+        this._clearPrefetch();
+        this._prefetchBlob = blob;
+        this._prefetchIdx  = nextIdx;
+        this._prefetchUrl  = URL.createObjectURL(blob);
+      } catch (_) {
+        /* Prefetch fallito silenziosamente: non blocca il player */
+      }
+    }
+
+    /** Aggiorna testo, contatore, progress bar e stato bottoni */
+    updateUI() {
+      const para = this.paragraphs[this.currentIdx];
+
+      /* Testo con fade */
+      if (para) {
+        const el = this._dom.paragraphText;
+        el.classList.add('fade-out');
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.textContent = para.text;
+            el.classList.remove('fade-out');
+          });
+        });
+      }
+
+      /* Contatore */
+      if (this.totalCount) {
+        this._dom.progressCounter.textContent =
+          `Paragrafo ${this.currentIdx + 1} / ${this.totalCount}`;
+      } else {
+        this._dom.progressCounter.textContent = 'Paragrafo — / —';
+      }
+
+      /* Progress bar */
+      const pct = this.totalCount > 1
+        ? (this.currentIdx / (this.totalCount - 1)) * 100
+        : 0;
+      this._dom.progressFill.style.width = pct.toFixed(2) + '%';
+      this._dom.progressBar.setAttribute('aria-valuenow', Math.round(pct));
+      this._dom.progressBar.setAttribute('aria-valuetext',
+        `Paragrafo ${this.currentIdx + 1} di ${this.totalCount}`);
+
+      /* Stato bottoni prev/next/start */
+      this._dom.btnPrev.disabled  = !this.totalCount || this.currentIdx <= 0;
+      this._dom.btnStart.disabled = !this.totalCount || this.currentIdx <= 0;
+      this._dom.btnNext.disabled  = !this.totalCount || this.currentIdx >= this.totalCount - 1;
+
+      /* Icone play/pause */
+      this._updatePlayIcon();
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: load and play
+    ---------------------------------------------------------- */
+    async _loadAndPlay(idx) {
+      this._setState('loading');
+      this._setPlayIconLoading(true);
+
+      try {
+        let audioSrc;
+
+        /* Usa prefetch blob se disponibile per questo indice */
+        if (this._prefetchIdx === idx && this._prefetchUrl) {
+          audioSrc = this._prefetchUrl;
+        } else {
+          /* Fetch diretto */
+          const url = `/api/audio/${idx}?voice=${encodeURIComponent(this.currentVoice)}`;
+          const res = await fetch(url);
+
+          if (!res.ok) {
+            let msg = 'Errore sintesi audio.';
+            try { const d = await res.json(); msg = d.error || msg; } catch(_) {}
+            throw new Error(msg);
+          }
+
+          const blob = await res.blob();
+
+          /* Revoca vecchio url solo se non e' il prefetch che stiamo usando */
+          if (this._prefetchUrl && this._prefetchIdx !== idx) {
+            this._clearPrefetch();
+          }
+
+          audioSrc = URL.createObjectURL(blob);
+          /* Salva il riferimento per poterlo revocare dopo */
+          this._currentBlobUrl = audioSrc;
+        }
+
+        this._audio.src = audioSrc;
+        await this._audio.play();
+
+        this._setPlayIconLoading(false);
+
+        /* Avvia prefetch del prossimo in background */
+        this.prefetchNext(idx);
+
+      } catch (err) {
+        this._setState('idle');
+        this._setPlayIconLoading(false);
+        this._showError(`Errore sintesi: ${err.message} Riprova o cambia voce.`);
+      }
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: event handlers audio element
+    ---------------------------------------------------------- */
+    _onEnded() {
+      /* Revoca l'url del blob corrente se non e' il prefetch */
+      if (this._currentBlobUrl && this._currentBlobUrl !== this._prefetchUrl) {
+        URL.revokeObjectURL(this._currentBlobUrl);
+        this._currentBlobUrl = null;
+      }
+
+      /* Avanzamento automatico */
+      if (this.currentIdx < this.totalCount - 1) {
+        this.currentIdx++;
+        this.updateUI();
+        this._loadAndPlay(this.currentIdx);
+      } else {
+        /* Fine testo */
+        this._setState('idle');
+        this.updateUI();
+      }
+    }
+
+    _onPlaying() {
+      this._setState('playing');
+      this._setPlayIconLoading(false);
+      this.updateUI();
+    }
+
+    _onPaused() {
+      if (this._state !== 'idle') {
+        this._setState('paused');
+        this.updateUI();
+      }
+    }
+
+    _onAudioError() {
+      if (this._state === 'loading' || this._state === 'playing') {
+        this._setState('idle');
+        this._setPlayIconLoading(false);
+        this._showError('Errore di riproduzione audio. Riprova o cambia voce.');
+        this.updateUI();
+      }
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: stato player
+    ---------------------------------------------------------- */
+    _setState(state) {
+      this._state = state;
+      /* Abilita/disabilita bottone stop e play in base allo stato */
+      const hasFile = this.totalCount > 0;
+      this._dom.btnPlay.disabled   = !hasFile || state === 'loading';
+      this._dom.btnStop.disabled   = !hasFile || (state === 'idle');
+      this._dom.btnRepeat.disabled = !hasFile;
+    }
+
+    _setControlsEnabled(enabled) {
+      [
+        this._dom.btnPlay,
+        this._dom.btnStop,
+        this._dom.btnPrev,
+        this._dom.btnNext,
+        this._dom.btnStart,
+        this._dom.btnRepeat,
+      ].forEach(btn => { btn.disabled = !enabled; });
+
+      if (enabled) {
+        /* Ridefinisci correttamente lo stato iniziale */
+        this._setState('idle');
+        this.updateUI();
+      }
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: icone play button
+    ---------------------------------------------------------- */
+    _updatePlayIcon() {
+      const isPlaying = this._state === 'playing';
+      const isLoading = this._state === 'loading';
+
+      if (!isLoading) {
+        this._dom.iconPlay.classList.toggle('hidden', isPlaying);
+        this._dom.iconPause.classList.toggle('hidden', !isPlaying);
+        this._dom.btnPlay.classList.remove('is-loading');
+      }
+
+      this._dom.btnPlay.setAttribute('aria-label',
+        isPlaying ? 'Pausa' : 'Riproduci');
+    }
+
+    _setPlayIconLoading(loading) {
+      if (loading) {
+        this._dom.btnPlay.classList.add('is-loading');
+        this._dom.iconPlay.classList.add('hidden');
+        this._dom.iconPause.classList.add('hidden');
+        this._dom.btnPlay.setAttribute('aria-label', 'Caricamento audio...');
+      } else {
+        this._dom.btnPlay.classList.remove('is-loading');
+        this._updatePlayIcon();
+      }
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: prefetch cache
+    ---------------------------------------------------------- */
+    _clearPrefetch() {
+      if (this._prefetchUrl) {
+        URL.revokeObjectURL(this._prefetchUrl);
+      }
+      this._prefetchUrl  = null;
+      this._prefetchBlob = null;
+      this._prefetchIdx  = -1;
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: save link
+    ---------------------------------------------------------- */
+    _updateSaveLink() {
+      this._dom.btnSave.href =
+        `/api/save?voice=${encodeURIComponent(this.currentVoice)}`;
+    }
+
+    /* ----------------------------------------------------------
+       PRIVATE: errori
+    ---------------------------------------------------------- */
+    _showError(msg) {
+      this._dom.errorMsg.textContent = msg;
+      this._dom.errorBanner.classList.remove('hidden');
+
+      /* Auto-dismiss dopo 5 secondi */
+      clearTimeout(this._errorTimer);
+      this._errorTimer = setTimeout(() => this._hideError(), 5000);
+    }
+
+    _hideError() {
+      this._dom.errorBanner.classList.add('hidden');
+      clearTimeout(this._errorTimer);
+    }
+  }
+
+  /* ============================================================
+     BOOTSTRAP
+  ============================================================ */
+  const player = new TtsPlayer();
+  </script>
+
+</body>
+</html>
