@@ -862,7 +862,7 @@
       this._audio.preload = 'auto';
 
       /* Prefetch blob */
-      this._prefetchBlob = null;   // Blob del paragrafo N+1
+      this._currentBlobUrl = null; // ObjectURL audio corrente
       this._prefetchIdx  = -1;     // Indice a cui si riferisce il blob
       this._prefetchUrl  = null;   // ObjectURL attivo
 
@@ -1132,7 +1132,7 @@
 
         /* Revoca il vecchio ObjectURL prima di creare il nuovo */
         this._clearPrefetch();
-        this._prefetchBlob = blob;
+
         this._prefetchIdx  = nextIdx;
         this._prefetchUrl  = URL.createObjectURL(blob);
       } catch (_) {
@@ -1343,7 +1343,6 @@
         URL.revokeObjectURL(this._prefetchUrl);
       }
       this._prefetchUrl  = null;
-      this._prefetchBlob = null;
       this._prefetchIdx  = -1;
     }
 

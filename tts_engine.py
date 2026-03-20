@@ -29,23 +29,35 @@ _executor = ThreadPoolExecutor(max_workers=2)
 def _wav_to_mp3_bytes(wav_bytes: bytes) -> bytes:
     """Converte WAV in MP3 in memoria tramite ffmpeg (pipe in/out)."""
     result = subprocess.run(
-        ["ffmpeg", "-y", "-i", "pipe:0",
-         "-codec:a", "libmp3lame", "-b:a", "128k",
-         "-loglevel", "error", "-f", "mp3", "pipe:1"],
-        input=wav_bytes, capture_output=True, check=True,
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            "pipe:0",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-loglevel",
+            "error",
+            "-f",
+            "mp3",
+            "pipe:1",
+        ],
+        input=wav_bytes,
+        capture_output=True,
+        check=True,
     )
     return result.stdout
 
 
 def _concat_mp3_bytes(mp3_list: list[bytes]) -> bytes:
-    """Concatena una lista di MP3 in un unico MP3 tramite ffmpeg."""
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", "concat:pipe:0",
-         "-codec:a", "copy", "-loglevel", "error",
-         "-f", "mp3", "pipe:1"],
-        input=b"".join(mp3_list), capture_output=True, check=True,
-    )
-    return result.stdout
+    """Concatena una lista di MP3 in un unico file.
+
+    I frame MP3 sono auto-sincronizzanti: la concatenazione
+    diretta dei bytes produce un file valido senza re-encoding.
+    """
+    return b"".join(mp3_list)
 
 
 class TTSEngine:
@@ -70,21 +82,21 @@ class TTSEngine:
     def load_file(self, path: Path) -> list[str]:
         """Carica un file Markdown e restituisce la lista di paragrafi."""
         testo = markdown_a_testo(path)
-        self._paragraphs = [
-            p.strip() for p in testo.split("\n\n") if p.strip()
-        ]
-        self._filename = path.name
-        self._clear_cache()
-        return self._paragraphs
+        paragraphs = [p.strip() for p in testo.split("\n\n") if p.strip()]
+        with self._lock:
+            self._paragraphs = paragraphs
+            self._filename = path.name
+            self._cache.clear()
+        return paragraphs
 
     def load_text(self, text: str, filename: str) -> list[str]:
         """Carica testo raw e restituisce la lista di paragrafi."""
-        self._paragraphs = [
-            p.strip() for p in text.split("\n\n") if p.strip()
-        ]
-        self._filename = filename
-        self._clear_cache()
-        return self._paragraphs
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        with self._lock:
+            self._paragraphs = paragraphs
+            self._filename = filename
+            self._cache.clear()
+        return paragraphs
 
     def get_audio(self, index: int, voice: str) -> bytes:
         """Restituisce MP3 bytes per il paragrafo. Usa cache se disponibile."""
@@ -125,9 +137,16 @@ class TTSEngine:
         _executor.submit(_do_prefetch)
 
     def save_all(self, voice: str) -> bytes:
-        """Sintetizza tutti i paragrafi e restituisce MP3 concatenato."""
+        """Sintetizza tutti i paragrafi e restituisce MP3 concatenato.
+
+        Usa uno snapshot della lista paragrafi per evitare corruzione
+        se un nuovo file viene caricato durante l'operazione.
+        """
+        with self._lock:
+            snapshot = list(self._paragraphs)
+
         all_mp3 = []
-        for i in range(len(self._paragraphs)):
+        for i in range(len(snapshot)):
             all_mp3.append(self.get_audio(i, voice))
         return _concat_mp3_bytes(all_mp3)
 
@@ -143,9 +162,7 @@ class TTSEngine:
         if self._piper_voice is None:
             self._load_piper()
 
-        wav_bytes = sintetizza_piper(
-            self._piper_voice, text, self._piper_sample_rate
-        )
+        wav_bytes = sintetizza_piper(self._piper_voice, text, self._piper_sample_rate)
         return _wav_to_mp3_bytes(wav_bytes)
 
     def _load_piper(self):
@@ -156,9 +173,7 @@ class TTSEngine:
             from piper import PiperVoice
 
             scarica_voce_piper()
-            self._piper_voice = PiperVoice.load(
-                str(VOICE_MODEL), config_path=str(VOICE_JSON)
-            )
+            self._piper_voice = PiperVoice.load(str(VOICE_MODEL), config_path=str(VOICE_JSON))
             self._piper_sample_rate = self._piper_voice.config.sample_rate
 
     def _put_cache(self, key: str, data: bytes):

@@ -36,19 +36,19 @@ from pathlib import Path
 EDGE_VOICES = {
     "giuseppe": "it-IT-GiuseppeMultilingualNeural",
     "isabella": "it-IT-IsabellaNeural",
-    "elsa":     "it-IT-ElsaNeural",
-    "diego":    "it-IT-DiegoNeural",
+    "elsa": "it-IT-ElsaNeural",
+    "diego": "it-IT-DiegoNeural",
 }
 
 PIPER_VOICES = {"paola"}
 
-VOICE_DIR   = Path.home() / "piper-voices"
+VOICE_DIR = Path.home() / "piper-voices"
 VOICE_MODEL = VOICE_DIR / "it_IT-paola-medium.onnx"
-VOICE_JSON  = VOICE_DIR / "it_IT-paola-medium.onnx.json"
+VOICE_JSON = VOICE_DIR / "it_IT-paola-medium.onnx.json"
 
 VOICE_URLS = {
     VOICE_MODEL: "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium/it_IT-paola-medium.onnx",
-    VOICE_JSON:  "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium/it_IT-paola-medium.onnx.json",
+    VOICE_JSON: "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium/it_IT-paola-medium.onnx.json",
 }
 
 ALL_VOICES = sorted(list(EDGE_VOICES.keys()) + list(PIPER_VOICES))
@@ -56,16 +56,26 @@ DEFAULT_VOICE = "giuseppe"
 
 # ─── Colori terminale ─────────────────────────────────────────────────────────
 
-GREEN  = "\033[0;32m"
+GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
-RED    = "\033[0;31m"
-NC     = "\033[0m"
+RED = "\033[0;31m"
+NC = "\033[0m"
 
-def info(msg):  print(f"{GREEN}[INFO]{NC}  {msg}", flush=True)
-def warn(msg):  print(f"{YELLOW}[WARN]{NC}  {msg}", flush=True)
-def error(msg): print(f"{RED}[ERRORE]{NC} {msg}", flush=True)
+
+def info(msg):
+    print(f"{GREEN}[INFO]{NC}  {msg}", flush=True)
+
+
+def warn(msg):
+    print(f"{YELLOW}[WARN]{NC}  {msg}", flush=True)
+
+
+def error(msg):
+    print(f"{RED}[ERRORE]{NC} {msg}", flush=True)
+
 
 # ─── Scarica voce Piper se necessario ────────────────────────────────────────
+
 
 def scarica_voce_piper():
     VOICE_DIR.mkdir(parents=True, exist_ok=True)
@@ -92,19 +102,21 @@ def scarica_voce_piper():
             error(f"Errore durante il download: {e}")
             sys.exit(1)
 
+
 # ─── Converti Markdown → testo pulito ────────────────────────────────────────
+
 
 def markdown_a_testo(percorso: Path) -> str:
     if shutil.which("pandoc"):
         result = subprocess.run(
-            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
-            capture_output=True, text=True
+            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"], capture_output=True, text=True
         )
         if result.returncode == 0:
             return result.stdout
         warn("pandoc ha restituito un errore, uso il fallback.")
 
     import re
+
     testo = percorso.read_text(encoding="utf-8")
     testo = re.sub(r"#{1,6}\s*", "", testo)
     testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
@@ -114,10 +126,14 @@ def markdown_a_testo(percorso: Path) -> str:
     testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)
     testo = re.sub(r"[-*_]{3,}", "", testo)
     testo = re.sub(r"^\s*[-*+]\s+", "", testo, flags=re.MULTILINE)
+    # Rimuovi tabelle Markdown (righe con |)
+    testo = re.sub(r"^\|.*\|$", "", testo, flags=re.MULTILINE)
     testo = re.sub(r"\n{3,}", "\n\n", testo)
     return testo.strip()
 
+
 # ─── Sintesi Piper (offline) ────────────────────────────────────────────────
+
 
 def sintetizza_piper(voce_piper, testo: str, sample_rate: int) -> bytes:
     buf = io.BytesIO()
@@ -128,13 +144,26 @@ def sintetizza_piper(voce_piper, testo: str, sample_rate: int) -> bytes:
         voce_piper.synthesize_wav(testo, wf)
     return buf.getvalue()
 
+
 def wav_a_mp3(wav_bytes: bytes, output_path: Path):
     subprocess.run(
-        ["ffmpeg", "-y", "-i", "pipe:0",
-         "-codec:a", "libmp3lame", "-b:a", "128k",
-         "-loglevel", "error", str(output_path)],
-        input=wav_bytes, check=True,
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            "pipe:0",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-loglevel",
+            "error",
+            str(output_path),
+        ],
+        input=wav_bytes,
+        check=True,
     )
+
 
 def concatena_wav(lista_wav: list[bytes], sample_rate: int) -> bytes:
     buf = io.BytesIO()
@@ -147,10 +176,13 @@ def concatena_wav(lista_wav: list[bytes], sample_rate: int) -> bytes:
                 wf_out.writeframes(wf_in.readframes(wf_in.getnframes()))
     return buf.getvalue()
 
+
 # ─── Sintesi Edge TTS (online) ──────────────────────────────────────────────
+
 
 async def sintetizza_edge(voice_id: str, testo: str) -> bytes:
     import edge_tts
+
     comm = edge_tts.Communicate(testo, voice_id)
     buf = io.BytesIO()
     async for chunk in comm.stream():
@@ -158,15 +190,27 @@ async def sintetizza_edge(voice_id: str, testo: str) -> bytes:
             buf.write(chunk["data"])
     return buf.getvalue()
 
+
 def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
     subprocess.run(
-        ["ffmpeg", "-y", "-i", "concat:pipe:0",
-         "-codec:a", "copy", "-loglevel", "error",
-         str(output_path)],
-        input=b"".join(lista_mp3), check=True,
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            "concat:pipe:0",
+            "-codec:a",
+            "copy",
+            "-loglevel",
+            "error",
+            str(output_path),
+        ],
+        input=b"".join(lista_mp3),
+        check=True,
     )
 
+
 # ─── Riproduzione audio ─────────────────────────────────────────────────────
+
 
 def riproduci_audio(audio_bytes: bytes, formato: str):
     if formato == "wav":
@@ -174,10 +218,13 @@ def riproduci_audio(audio_bytes: bytes, formato: str):
     else:
         subprocess.run(
             ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"],
-            input=audio_bytes, check=False,
+            input=audio_bytes,
+            check=False,
         )
 
+
 # ─── Lettura con Piper TTS ──────────────────────────────────────────────────
+
 
 def leggi_con_piper(testo: str, salva_path: Path | None = None):
     try:
@@ -237,7 +284,9 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None):
         wav_a_mp3(wav_completo, salva_path)
         info(f"Salvato: {salva_path} ({len(tutti_wav)} paragrafi)")
 
+
 # ─── Lettura con Edge TTS ───────────────────────────────────────────────────
+
 
 def leggi_con_edge(testo: str, voice_name: str, salva_path: Path | None = None):
     try:
@@ -283,9 +332,7 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
 
             # Lancia prefetch del prossimo paragrafo durante la riproduzione
             if i < totale:
-                prossimo = asyncio.create_task(
-                    sintetizza_edge(voice_id, paragrafi[i])
-                )
+                prossimo = asyncio.create_task(sintetizza_edge(voice_id, paragrafi[i]))
 
             if salva_path:
                 tutti_mp3.append(mp3_bytes)
@@ -309,12 +356,19 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
 async def _riproduci_async(mp3_bytes: bytes):
     """Riproduce MP3 in modo non-bloccante per l'event loop."""
     proc = await asyncio.create_subprocess_exec(
-        "ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-",
+        "ffplay",
+        "-nodisp",
+        "-autoexit",
+        "-loglevel",
+        "error",
+        "-",
         stdin=asyncio.subprocess.PIPE,
     )
     await proc.communicate(input=mp3_bytes)
 
+
 # ─── Utilità UI ──────────────────────────────────────────────────────────────
+
 
 def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
     if not visibile:
@@ -324,7 +378,9 @@ def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
     sys.stdout.write(testo + "\n")
     sys.stdout.flush()
 
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -339,11 +395,16 @@ def main():
     )
     parser.add_argument("file", type=Path, help="File Markdown da leggere")
     parser.add_argument(
-        "--voice", choices=ALL_VOICES, default=DEFAULT_VOICE,
+        "--voice",
+        choices=ALL_VOICES,
+        default=DEFAULT_VOICE,
         help=f"Voce da usare (default: {DEFAULT_VOICE})",
     )
     parser.add_argument(
-        "--salva", type=Path, default=None, metavar="OUTPUT.mp3",
+        "--salva",
+        type=Path,
+        default=None,
+        metavar="OUTPUT.mp3",
         help="Salva l'audio in MP3 (file unico + paragrafi singoli)",
     )
     args = parser.parse_args()
@@ -375,6 +436,7 @@ def main():
         leggi_con_edge(testo, args.voice, salva_path=args.salva)
 
     info("Fine.")
+
 
 if __name__ == "__main__":
     main()
