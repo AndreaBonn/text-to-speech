@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Output audio
+output_paragrafi/
+*.mp3
+*.wav
+
+# Markdown sorgenti (contenuti personali)
+*.md
+!README.md
+
+# Firebase / debug
+firebase-debug.log
+
+# OS
+.DS_Store
