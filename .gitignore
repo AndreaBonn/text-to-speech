@@ -8,17 +8,15 @@ venv/
 .pytest_cache/
 
 # Dati di input/output (contenuti personali e generati)
-data/input/
-data/output/
+data/input/*
+data/output/*
+!data/input/.gitkeep
+!data/output/example/
 
 # Output legacy (prima della riorganizzazione)
 output_paragrafi/
 *.mp3
 *.wav
-
-# Preserva struttura cartelle
-!data/input/.gitkeep
-!data/output/.gitkeep
 
 # Markdown sorgenti (contenuti personali)
 *.md
