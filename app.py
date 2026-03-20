@@ -7,8 +7,12 @@ Uso:
     # Apre http://localhost:5000
 """
 
+import logging
+import os
+import re
 import tempfile
-from pathlib import Path
+from pathlib import PurePosixPath, Path
+from urllib.parse import quote
 
 from flask import Flask, jsonify, render_template, request, Response
 
@@ -16,20 +20,44 @@ from leggi_markdown import EDGE_VOICES, PIPER_VOICES, ALL_VOICES, DEFAULT_VOICE
 from tts_engine import TTSEngine
 
 app = Flask(__name__)
-engine = TTSEngine()
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB
 
+engine = TTSEngine()
+log = logging.getLogger(__name__)
+
+# Derivare metadati voci dalla sorgente unica
 VOICES_META = [
-    {"id": "giuseppe", "label": "Giuseppe", "type": "edge",
-     "multilingual": True, "gender": "M"},
-    {"id": "isabella", "label": "Isabella", "type": "edge",
-     "multilingual": False, "gender": "F"},
-    {"id": "elsa", "label": "Elsa", "type": "edge",
-     "multilingual": False, "gender": "F"},
-    {"id": "diego", "label": "Diego", "type": "edge",
-     "multilingual": False, "gender": "M"},
-    {"id": "paola", "label": "Paola", "type": "piper",
-     "multilingual": False, "gender": "F"},
+    {
+        "id": vid,
+        "label": vid.capitalize(),
+        "type": "edge",
+        "multilingual": "Multilingual" in edge_id,
+        "gender": "M" if vid in ("giuseppe", "diego") else "F",
+    }
+    for vid, edge_id in EDGE_VOICES.items()
+] + [
+    {"id": vid, "label": vid.capitalize(), "type": "piper", "multilingual": False, "gender": "F"}
+    for vid in sorted(PIPER_VOICES)
 ]
+
+
+# ─── Security headers ───────────────────────────────────────────────────────
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "File troppo grande (max 10 MB)"}), 413
+
+
+# ─── Endpoints ───────────────────────────────────────────────────────────────
 
 
 @app.route("/")
@@ -42,6 +70,14 @@ def api_voices():
     return jsonify({"voices": VOICES_META, "default": DEFAULT_VOICE})
 
 
+def _sanitize_filename(raw_name: str) -> str:
+    """Estrae il nome base e rimuove caratteri non sicuri."""
+    base = PurePosixPath(raw_name).name
+    if not re.match(r"^[\w\-. ]+\.md$", base, re.UNICODE):
+        return ""
+    return base
+
+
 @app.route("/api/load", methods=["POST"])
 def api_load():
     """Carica un file Markdown uploadato e restituisce i paragrafi."""
@@ -49,13 +85,11 @@ def api_load():
         return jsonify({"error": "Nessun file inviato"}), 400
 
     file = request.files["file"]
-    if not file.filename or not file.filename.endswith(".md"):
-        return jsonify({"error": "Serve un file .md"}), 400
+    safe_name = _sanitize_filename(file.filename or "")
+    if not safe_name:
+        return jsonify({"error": "Nome file non valido. Serve un file .md"}), 400
 
-    # Salva temporaneamente per pandoc
-    with tempfile.NamedTemporaryFile(
-        suffix=".md", delete=False, mode="wb"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(suffix=".md", delete=False, mode="wb") as tmp:
         file.save(tmp)
         tmp_path = Path(tmp.name)
 
@@ -64,14 +98,15 @@ def api_load():
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    return jsonify({
-        "filename": file.filename,
-        "total": len(paragraphs),
-        "paragraphs": [
-            {"idx": i, "text": p, "chars": len(p)}
-            for i, p in enumerate(paragraphs)
-        ],
-    })
+    return jsonify(
+        {
+            "filename": safe_name,
+            "total": len(paragraphs),
+            "paragraphs": [
+                {"idx": i, "text": p, "chars": len(p)} for i, p in enumerate(paragraphs)
+            ],
+        }
+    )
 
 
 @app.route("/api/audio/<int:idx>")
@@ -88,8 +123,9 @@ def api_audio(idx):
         mp3_bytes = engine.get_audio(idx, voice)
     except IndexError:
         return jsonify({"error": f"Paragrafo {idx} non esiste"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        log.exception("Errore sintesi paragrafo %d con voce %s", idx, voice)
+        return jsonify({"error": "Errore durante la sintesi audio"}), 500
 
     return Response(mp3_bytes, mimetype="audio/mpeg")
 
@@ -112,21 +148,26 @@ def api_save():
         return jsonify({"error": "Nessun file caricato"}), 400
 
     mp3_bytes = engine.save_all(voice)
-    safe_name = "".join(
-        c for c in engine.filename.replace(".md", ".mp3")
-        if c.isalnum() or c in ".-_ "
+
+    safe_name = (
+        "".join(c for c in engine.filename.replace(".md", ".mp3") if c.isalnum() or c in ".-_ ")
+        or "output.mp3"
     )
+    encoded_name = quote(safe_name)
 
     return Response(
         mp3_bytes,
         mimetype="audio/mpeg",
         headers={
-            "Content-Disposition": f'attachment; filename="{safe_name}"'
+            "Content-Disposition": (
+                f'attachment; filename="{safe_name}"; ' f"filename*=UTF-8''{encoded_name}"
+            )
         },
     )
 
 
 if __name__ == "__main__":
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     print("\n  TTS Reader Web UI")
     print("  http://localhost:5000\n")
-    app.run(debug=True, port=5000)
+    app.run(debug=debug, port=5000)

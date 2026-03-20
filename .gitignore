@@ -18,5 +18,12 @@ output_paragrafi/
 # Firebase / debug
 firebase-debug.log
 
+# Claude Code
+.claude/
+
+# Report interni (non pubblicare)
+docs/CODE_ROAST_REPORT.md
+docs/SECURITY_AUDIT.md
+
 # OS
 .DS_Store
