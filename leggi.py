@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-leggi_markdown.py
-Legge ad alta voce un file Markdown in italiano usando Piper TTS o Edge TTS.
+leggi.py
+Legge ad alta voce file di testo in italiano usando Piper TTS o Edge TTS.
+Supporta: Markdown, TXT, EPUB, DOCX, HTML, PDF.
 
 Uso:
-    python leggi_markdown.py file.md
-    python leggi_markdown.py file.md --voice giuseppe
-    python leggi_markdown.py file.md --voice paola --salva output.mp3
+    python leggi.py file.md
+    python leggi.py documento.pdf --voice giuseppe
+    python leggi.py libro.epub --voice paola --salva output.mp3
 
 Voci disponibili:
     giuseppe  - Edge TTS, maschile, multilingue (default, richiede internet)
@@ -18,7 +19,7 @@ Voci disponibili:
 Setup iniziale (una sola volta):
     python -m venv venv
     source venv/bin/activate
-    pip install piper-tts pathvalidate edge-tts
+    pip install -r requirements.txt
 """
 
 import argparse
@@ -122,8 +123,8 @@ def markdown_a_testo(percorso: Path) -> str:
     testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
     testo = re.sub(r"\*(.+?)\*", r"\1", testo)
     testo = re.sub(r"`{1,3}.*?`{1,3}", "", testo, flags=re.DOTALL)
-    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)
-    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)
+    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)       # immagini (prima dei link)
+    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)   # link → solo testo
     testo = re.sub(r"[-*_]{3,}", "", testo)
     testo = re.sub(r"^\s*[-*+]\s+", "", testo, flags=re.MULTILINE)
     # Rimuovi tabelle Markdown (righe con |)
@@ -383,17 +384,22 @@ def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
 
 
 def main():
+    from converters import file_a_testo, SUPPORTED_EXTENSIONS
+
+    ext_list = ", ".join(sorted(SUPPORTED_EXTENSIONS))
     parser = argparse.ArgumentParser(
-        description="Legge ad alta voce un file Markdown in italiano.",
+        description="Legge ad alta voce file di testo in italiano.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""voci disponibili:
+        epilog=f"""formati supportati: {ext_list}
+
+voci disponibili:
   giuseppe  Edge TTS, maschile, multilingue IT/EN (default)
   isabella  Edge TTS, femminile
   elsa      Edge TTS, femminile
   diego     Edge TTS, maschile
   paola     Piper TTS, femminile, offline""",
     )
-    parser.add_argument("file", type=Path, help="File Markdown da leggere")
+    parser.add_argument("file", type=Path, help="File da leggere")
     parser.add_argument(
         "--voice",
         choices=ALL_VOICES,
@@ -420,8 +426,8 @@ def main():
     info(f"File: {args.file.name}")
     info(f"Voce: {args.voice}")
 
-    info("Converto Markdown in testo...")
-    testo = markdown_a_testo(args.file)
+    info("Converto in testo...")
+    testo = file_a_testo(args.file)
 
     if not testo.strip():
         error("Il file sembra vuoto dopo la conversione.")

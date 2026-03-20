@@ -1,6 +1,6 @@
 """
 tests/test_app.py
-Test suite per TTS Reader: leggi_markdown, app (Flask), tts_engine.
+Test suite per TTS Reader: leggi, app (Flask), tts_engine.
 
 Dipendenze esterne (edge-tts, piper, ffmpeg) sono sempre mockata
 per garantire test isolati e veloci.
@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ---------------------------------------------------------------------------
-# Patch globale: impedisce che leggi_markdown tenti import di edge_tts/piper
+# Patch globale: impedisce che leggi tenti import di edge_tts/piper
 # a livello di modulo durante il caricamento dei test.
 # ---------------------------------------------------------------------------
 
@@ -24,15 +24,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 # ===========================================================================
-# Test — leggi_markdown.py
+# Test — leggi.py
 # ===========================================================================
+
 
 class TestMarkdownATesto:
     """Test per la funzione markdown_a_testo (fallback regex, senza pandoc)."""
 
     def _converti(self, markdown: str) -> str:
         """Helper: esegue markdown_a_testo su testo inline (via file temp)."""
-        from leggi_markdown import markdown_a_testo
+        from leggi import markdown_a_testo
 
         with tempfile.NamedTemporaryFile(
             suffix=".md", mode="w", encoding="utf-8", delete=False
@@ -122,6 +123,7 @@ class TestMarkdownATesto:
 # Test — app.py (Flask test client)
 # ===========================================================================
 
+
 @pytest.fixture()
 def client():
     """Crea un Flask test client con engine resettato a ogni test."""
@@ -165,8 +167,7 @@ class TestVoicesEndpoint:
         campi_obbligatori = {"id", "label", "type", "multilingual", "gender"}
         for voce in data["voices"]:
             assert campi_obbligatori <= voce.keys(), (
-                f"Voce {voce.get('id')} mancante di campi: "
-                f"{campi_obbligatori - voce.keys()}"
+                f"Voce {voce.get('id')} mancante di campi: " f"{campi_obbligatori - voce.keys()}"
             )
 
         # Verifica che la voce di default esista nella lista
@@ -184,15 +185,15 @@ class TestLoadEndpoint:
         assert response.status_code == 400
         assert "error" in response.get_json()
 
-    def test_load_non_md_file(self, client):
-        """POST /api/load con file .txt deve restituire 400."""
+    def test_load_unsupported_format(self, client):
+        """POST /api/load con formato non supportato deve restituire 400."""
         # Arrange
-        file_txt = (io.BytesIO(b"testo semplice"), "documento.txt")
+        file_csv = (io.BytesIO(b"a,b,c"), "dati.csv")
 
         # Act
         response = client.post(
             "/api/load",
-            data={"file": file_txt},
+            data={"file": file_csv},
             content_type="multipart/form-data",
         )
 
@@ -275,6 +276,7 @@ class TestSaveEndpoint:
 # ===========================================================================
 # Test — tts_engine.py
 # ===========================================================================
+
 
 @pytest.fixture()
 def engine():

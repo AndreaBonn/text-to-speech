@@ -1,7 +1,7 @@
 """
 tts_engine.py
 Wrapper TTS con cache in-memory e prefetch asincrono.
-Importa le funzioni di sintesi da leggi_markdown.py.
+Importa le funzioni di sintesi da leggi.py.
 """
 
 import asyncio
@@ -11,12 +11,12 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from leggi_markdown import (
+from converters import file_a_testo
+from leggi import (
     EDGE_VOICES,
     PIPER_VOICES,
     VOICE_MODEL,
     VOICE_JSON,
-    markdown_a_testo,
     sintetizza_edge,
     sintetizza_piper,
     scarica_voce_piper,
@@ -80,8 +80,11 @@ class TTSEngine:
         return self._filename
 
     def load_file(self, path: Path) -> list[str]:
-        """Carica un file Markdown e restituisce la lista di paragrafi."""
-        testo = markdown_a_testo(path)
+        """Carica un file e restituisce la lista di paragrafi.
+
+        Supporta: .md, .txt, .epub, .docx, .html, .htm, .pdf
+        """
+        testo = file_a_testo(path)
         paragraphs = [p.strip() for p in testo.split("\n\n") if p.strip()]
         with self._lock:
             self._paragraphs = paragraphs

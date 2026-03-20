@@ -16,11 +16,12 @@ from urllib.parse import quote
 
 from flask import Flask, jsonify, render_template, request, Response
 
-from leggi_markdown import EDGE_VOICES, PIPER_VOICES, ALL_VOICES, DEFAULT_VOICE
+from converters import SUPPORTED_EXTENSIONS
+from leggi import EDGE_VOICES, PIPER_VOICES, ALL_VOICES, DEFAULT_VOICE
 from tts_engine import TTSEngine
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB (EPUB/PDF possono essere grandi)
 
 engine = TTSEngine()
 log = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def add_security_headers(response):
 
 @app.errorhandler(413)
 def too_large(e):
-    return jsonify({"error": "File troppo grande (max 10 MB)"}), 413
+    return jsonify({"error": "File troppo grande (max 50 MB)"}), 413
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
@@ -73,23 +74,26 @@ def api_voices():
 def _sanitize_filename(raw_name: str) -> str:
     """Estrae il nome base e rimuove caratteri non sicuri."""
     base = PurePosixPath(raw_name).name
-    if not re.match(r"^[\w\-. ]+\.md$", base, re.UNICODE):
+    ext_pattern = "|".join(re.escape(ext) for ext in sorted(SUPPORTED_EXTENSIONS))
+    if not re.match(rf"^[\w\-. ]+({ext_pattern})$", base, re.UNICODE):
         return ""
     return base
 
 
 @app.route("/api/load", methods=["POST"])
 def api_load():
-    """Carica un file Markdown uploadato e restituisce i paragrafi."""
+    """Carica un file e restituisce i paragrafi."""
     if "file" not in request.files:
         return jsonify({"error": "Nessun file inviato"}), 400
 
     file = request.files["file"]
     safe_name = _sanitize_filename(file.filename or "")
     if not safe_name:
-        return jsonify({"error": "Nome file non valido. Serve un file .md"}), 400
+        validi = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        return jsonify({"error": f"Formato non supportato. Formati validi: {validi}"}), 400
 
-    with tempfile.NamedTemporaryFile(suffix=".md", delete=False, mode="wb") as tmp:
+    ext = Path(safe_name).suffix.lower()
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False, mode="wb") as tmp:
         file.save(tmp)
         tmp_path = Path(tmp.name)
 
