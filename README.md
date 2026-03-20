@@ -1,9 +1,9 @@
-# Leggi Markdown
+# TTS Reader
 
-Tool per leggere ad alta voce file Markdown in italiano, con interfaccia web
-e da linea di comando. Supporta 5 voci neurali italiane. La voce predefinita
-(Giuseppe) è multilingue e pronuncia correttamente anche i termini inglesi
-nel testo italiano.
+Tool per leggere ad alta voce file di testo in italiano, con interfaccia web
+e da linea di comando. Supporta Markdown, TXT, EPUB, DOCX, HTML e PDF
+con 5 voci neurali italiane. La voce predefinita (Giuseppe) è multilingue
+e pronuncia correttamente anche i termini inglesi nel testo italiano.
 
 ## Funzionalità
 
@@ -51,7 +51,7 @@ python app.py
 
 Apri **http://localhost:5000** nel browser. L'interfaccia permette di:
 
-- Caricare un file `.md` dal disco
+- Caricare un file dal disco (MD, TXT, EPUB, DOCX, HTML, PDF)
 - Scegliere la voce dal menu a tendina
 - Usare i controlli player: play/pausa, stop, precedente, successivo, ripeti
 - Cliccare sulla barra di progresso per saltare a qualsiasi paragrafo
@@ -74,12 +74,18 @@ python leggi.py file.md --voice isabella
 python leggi.py file.md --voice paola
 
 # Salvataggio in MP3
-python leggi.py file.md --voice giuseppe --salva output.mp3
+python leggi.py file.md --voice giuseppe --salva
 ```
 
-Con `--salva` vengono creati:
-- Il file MP3 unico specificato
-- Una cartella `<nome>_paragrafi/` con un MP3 per ogni paragrafo
+Con `--salva` viene creata la struttura:
+```
+data/output/<nome_file>/
+├── full/<nome_file>.mp3       # Audio completo
+└── paragraphs/
+    ├── 001.mp3                # Singoli paragrafi
+    ├── 002.mp3
+    └── ...
+```
 
 ## Voci disponibili
 
@@ -101,6 +107,7 @@ scaricato automaticamente al primo utilizzo, circa 60 MB).
 text-to-speech/
 ├── app.py              # Server Flask per interfaccia web
 ├── tts_engine.py       # Motore TTS con cache e prefetch
+├── synthesis.py        # Funzioni di sintesi vocale (Piper, Edge)
 ├── config.py           # Configurazione voci, path modelli, costanti
 ├── leggi.py            # CLI: lettura da terminale
 ├── converters.py       # Convertitori formato → testo piano
@@ -112,7 +119,10 @@ text-to-speech/
 ├── tests/
 │   ├── conftest.py     # Fixture condivise (client, engine)
 │   └── test_*.py       # Test suite (pytest)
-├── docs/               # Documentazione
+├── data/
+│   ├── input/          # File sorgente da leggere
+│   └── output/         # Audio generato con --salva
+├── docs/               # Documentazione e report attività
 ├── requirements.txt    # Dipendenze Python
 ├── CLAUDE.md           # Istruzioni per Claude Code
 ├── LICENSE             # GPL-3.0

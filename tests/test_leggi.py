@@ -1,9 +1,9 @@
 """
 tests/test_leggi.py
-Test per le funzioni di leggi.py non coperte da test_app.py.
+Test per le funzioni di leggi.py e moduli correlati.
 
-Copre: costanti/configurazione voci, markdown_a_testo (edge case),
-scarica_voce_piper, concatena_wav, mostra_paragrafo.
+Copre: costanti/configurazione voci, convertitore Markdown (edge case),
+scarica_voce_piper (synthesis), concatena_wav, mostra_paragrafo.
 """
 
 import io
@@ -99,7 +99,7 @@ class TestMarkdownATestoEdgeCases:
 
     def _converti(self, markdown: str) -> str:
         """Helper: converte markdown via file temp con fallback regex forzato."""
-        from leggi import markdown_a_testo
+        from converters import file_a_testo
 
         with tempfile.NamedTemporaryFile(
             suffix=".md", mode="w", encoding="utf-8", delete=False
@@ -107,8 +107,8 @@ class TestMarkdownATestoEdgeCases:
             f.write(markdown)
             tmp_path = Path(f.name)
         try:
-            with patch("shutil.which", return_value=None):
-                return markdown_a_testo(tmp_path)
+            with patch("converters.shutil.which", return_value=None):
+                return file_a_testo(tmp_path)
         finally:
             tmp_path.unlink(missing_ok=True)
 
@@ -125,13 +125,7 @@ class TestMarkdownATestoEdgeCases:
         assert "Testo dopo." in risultato
 
     def test_rimuove_immagini(self):
-        """Le immagini ![alt](url) devono essere rimosse completamente.
-
-        NOTE: questo test rivela un bug nel codice — la regex dei link
-        (riga 125) viene applicata PRIMA di quella delle immagini (riga 126),
-        quindi ![alt](url) diventa !alt prima che il pattern immagine possa
-        catturarlo. Il fix è invertire l'ordine delle due regex.
-        """
+        """Le immagini ![alt](url) devono essere rimosse completamente."""
         # Arrange
         md = "Prima. ![screenshot](img.png) Dopo."
 
@@ -253,11 +247,11 @@ class TestMarkdownATestoEdgeCases:
 
 
 class TestMarkdownATestoConPandoc:
-    """Test per il percorso pandoc di markdown_a_testo."""
+    """Test per il percorso pandoc del convertitore Markdown."""
 
     def test_usa_pandoc_quando_disponibile(self):
         """Deve usare pandoc se disponibile nel PATH."""
-        from leggi import markdown_a_testo
+        from converters import file_a_testo
 
         # Arrange
         with tempfile.NamedTemporaryFile(
@@ -271,11 +265,11 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 0
             mock_result.stdout = "Titolo\n\nTesto semplice."
 
-            with patch("shutil.which", return_value="/usr/bin/pandoc"), patch(
-                "subprocess.run", return_value=mock_result
+            with patch("converters.shutil.which", return_value="/usr/bin/pandoc"), patch(
+                "converters.subprocess.run", return_value=mock_result
             ) as mock_run:
                 # Act
-                risultato = markdown_a_testo(tmp_path)
+                risultato = file_a_testo(tmp_path)
 
             # Assert
             mock_run.assert_called_once()
@@ -285,7 +279,7 @@ class TestMarkdownATestoConPandoc:
 
     def test_fallback_regex_se_pandoc_fallisce(self):
         """Se pandoc restituisce errore, deve cadere sul fallback regex."""
-        from leggi import markdown_a_testo
+        from converters import file_a_testo
 
         # Arrange
         with tempfile.NamedTemporaryFile(
@@ -299,11 +293,11 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 1  # pandoc fallisce
             mock_result.stdout = ""
 
-            with patch("shutil.which", return_value="/usr/bin/pandoc"), patch(
-                "subprocess.run", return_value=mock_result
+            with patch("converters.shutil.which", return_value="/usr/bin/pandoc"), patch(
+                "converters.subprocess.run", return_value=mock_result
             ):
                 # Act
-                risultato = markdown_a_testo(tmp_path)
+                risultato = file_a_testo(tmp_path)
 
             # Assert — il fallback regex deve comunque funzionare
             assert "#" not in risultato
@@ -386,10 +380,10 @@ class TestScaricaVocePiper:
 
     def test_skip_download_se_file_esistono(self):
         """Non deve scaricare se i file del modello esistono già."""
-        from leggi import scarica_voce_piper
+        from synthesis import scarica_voce_piper
 
         # Arrange & Act
-        with patch("leggi.VOICE_DIR") as mock_dir, patch("leggi.VOICE_URLS", {}) as mock_urls:
+        with patch("synthesis.VOICE_DIR") as mock_dir, patch("synthesis.VOICE_URLS", {}):
             mock_dir.mkdir = MagicMock()
             # Nessun URL da scaricare
             scarica_voce_piper()
@@ -399,7 +393,7 @@ class TestScaricaVocePiper:
 
     def test_crea_directory_se_non_esiste(self):
         """Deve creare la directory dei modelli con parents=True."""
-        from leggi import scarica_voce_piper, VOICE_DIR
+        from synthesis import scarica_voce_piper
 
         # Arrange
         mock_path_model = MagicMock()
@@ -410,8 +404,8 @@ class TestScaricaVocePiper:
         mock_path_json.exists.return_value = True
         mock_path_json.name = "model.onnx.json"
 
-        with patch("leggi.VOICE_DIR") as mock_dir, patch(
-            "leggi.VOICE_URLS",
+        with patch("synthesis.VOICE_DIR") as mock_dir, patch(
+            "synthesis.VOICE_URLS",
             {
                 mock_path_model: "http://example.com/model",
                 mock_path_json: "http://example.com/model.json",

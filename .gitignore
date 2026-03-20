@@ -30,9 +30,8 @@ firebase-debug.log
 # Claude Code
 .claude/
 
-# Report interni (non pubblicare)
-docs/CODE_ROAST_REPORT.md
-docs/SECURITY_AUDIT.md
+# Documentazione interna (non pubblicare)
+docs/
 
 # OS
 .DS_Store

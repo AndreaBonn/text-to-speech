@@ -8,6 +8,8 @@ Ogni convertitore restituisce testo pulito pronto per la sintesi vocale.
 
 import logging
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -62,10 +64,34 @@ def _converti_testo(percorso: Path) -> str:
 
 
 def _converti_markdown(percorso: Path) -> str:
-    """Converte Markdown in testo piano via pandoc o fallback regex."""
-    from leggi import markdown_a_testo
+    """Converte Markdown in testo piano via pandoc o fallback regex.
 
-    return markdown_a_testo(percorso)
+    Usa pandoc se disponibile nel PATH, altrimenti un fallback regex
+    che rimuove la sintassi Markdown più comune.
+    """
+    if shutil.which("pandoc"):
+        result = subprocess.run(
+            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return result.stdout
+        log.warning("pandoc ha restituito un errore, uso il fallback regex.")
+
+    testo = percorso.read_text(encoding="utf-8")
+    testo = re.sub(r"#{1,6}\s*", "", testo)
+    testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
+    testo = re.sub(r"\*(.+?)\*", r"\1", testo)
+    testo = re.sub(r"`{1,3}.*?`{1,3}", "", testo, flags=re.DOTALL)
+    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)  # immagini (PRIMA dei link)
+    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)  # link → solo testo
+    testo = re.sub(r"[-*_]{3,}", "", testo)
+    testo = re.sub(r"^\s*[-*+]\s+", "", testo, flags=re.MULTILINE)
+    testo = re.sub(r"^\|.*\|$", "", testo, flags=re.MULTILINE)
+    testo = re.sub(r"\n{3,}", "\n\n", testo)
+    return testo.strip()
 
 
 # ─── EPUB ─────────────────────────────────────────────────────────────────────

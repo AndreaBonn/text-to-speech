@@ -1,7 +1,7 @@
 """
 tts_engine.py
 Wrapper TTS con cache in-memory e prefetch asincrono.
-Importa le funzioni di sintesi da leggi.py.
+Importa le funzioni di sintesi da synthesis.py.
 """
 
 import asyncio
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from converters import file_a_testo
 from config import EDGE_VOICES, PIPER_VOICES, VOICE_MODEL, VOICE_JSON
-from leggi import sintetizza_edge, sintetizza_piper, scarica_voce_piper
+from synthesis import sintetizza_edge, sintetizza_piper, scarica_voce_piper
 
 log = logging.getLogger(__name__)
 
@@ -156,7 +156,10 @@ class TTSEngine:
 
     def _synthesize(self, index: int, voice: str) -> bytes:
         """Sintetizza un paragrafo. Restituisce sempre MP3."""
-        text = self._paragraphs[index]
+        with self._lock:
+            if index < 0 or index >= len(self._paragraphs):
+                raise IndexError(f"Paragrafo {index} fuori range (durante sintesi)")
+            text = self._paragraphs[index]
 
         if voice in EDGE_VOICES:
             voice_id = EDGE_VOICES[voice]

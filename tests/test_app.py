@@ -21,11 +21,11 @@ import pytest
 
 
 class TestMarkdownATesto:
-    """Test per la funzione markdown_a_testo (fallback regex, senza pandoc)."""
+    """Test per il convertitore Markdown (fallback regex, senza pandoc)."""
 
     def _converti(self, markdown: str) -> str:
-        """Helper: esegue markdown_a_testo su testo inline (via file temp)."""
-        from leggi import markdown_a_testo
+        """Helper: converte Markdown via file temp con fallback regex forzato."""
+        from converters import file_a_testo
 
         with tempfile.NamedTemporaryFile(
             suffix=".md", mode="w", encoding="utf-8", delete=False
@@ -34,9 +34,8 @@ class TestMarkdownATesto:
             tmp_path = Path(f.name)
 
         try:
-            # Forza percorso pandoc assente per usare il fallback regex
-            with patch("shutil.which", return_value=None):
-                return markdown_a_testo(tmp_path)
+            with patch("converters.shutil.which", return_value=None):
+                return file_a_testo(tmp_path)
         finally:
             tmp_path.unlink(missing_ok=True)
 

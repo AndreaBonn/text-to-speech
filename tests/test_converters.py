@@ -137,7 +137,7 @@ class TestConvertiMarkdown:
         md.write_text("# Titolo\n\nContenuto del documento.")
 
         # Act — forza fallback regex (senza pandoc)
-        with patch("leggi.shutil.which", return_value=None):
+        with patch("converters.shutil.which", return_value=None):
             risultato = file_a_testo(md)
 
         # Assert

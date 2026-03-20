@@ -24,107 +24,29 @@ Setup iniziale (una sola volta):
 
 import argparse
 import asyncio
-import sys
-import subprocess
-import urllib.request
-import shutil
-import wave
 import io
+import shutil
+import subprocess
+import sys
+import wave
 from pathlib import Path
 
 from config import (
-    PROJECT_ROOT,
-    DATA_INPUT,
     DATA_OUTPUT,
     EDGE_VOICES,
     PIPER_VOICES,
-    VOICE_DIR,
     VOICE_MODEL,
     VOICE_JSON,
-    VOICE_URLS,
     ALL_VOICES,
     DEFAULT_VOICE,
     GREEN,
-    YELLOW,
-    RED,
     NC,
     info,
-    warn,
     error,
 )
+from synthesis import scarica_voce_piper, sintetizza_piper, sintetizza_edge
 
-# ─── Scarica voce Piper se necessario ────────────────────────────────────────
-
-
-def scarica_voce_piper():
-    VOICE_DIR.mkdir(parents=True, exist_ok=True)
-    for dest, url in VOICE_URLS.items():
-        if dest.exists():
-            info(f"Voce già presente: {dest.name}")
-            continue
-        warn(f"Scarico {dest.name} ...")
-        try:
-            with urllib.request.urlopen(url) as response, open(dest, "wb") as f:
-                total = int(response.headers.get("Content-Length", 0))
-                scaricati = 0
-                while True:
-                    chunk = response.read(1024 * 64)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    scaricati += len(chunk)
-                    if total:
-                        print(f"\r  {scaricati/total*100:.1f}%", end="", flush=True)
-            print()
-            info(f"{dest.name} scaricato.")
-        except Exception as e:
-            error(f"Errore durante il download: {e}")
-            sys.exit(1)
-
-
-# ─── Converti Markdown → testo pulito ────────────────────────────────────────
-
-
-def markdown_a_testo(percorso: Path) -> str:
-    if shutil.which("pandoc"):
-        result = subprocess.run(
-            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return result.stdout
-        warn("pandoc ha restituito un errore, uso il fallback.")
-
-    import re
-
-    testo = percorso.read_text(encoding="utf-8")
-    testo = re.sub(r"#{1,6}\s*", "", testo)
-    testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
-    testo = re.sub(r"\*(.+?)\*", r"\1", testo)
-    testo = re.sub(r"`{1,3}.*?`{1,3}", "", testo, flags=re.DOTALL)
-    testo = re.sub(r"!\[.*?\]\(.+?\)", "", testo)  # immagini (prima dei link)
-    testo = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", testo)  # link → solo testo
-    testo = re.sub(r"[-*_]{3,}", "", testo)
-    testo = re.sub(r"^\s*[-*+]\s+", "", testo, flags=re.MULTILINE)
-    # Rimuovi tabelle Markdown (righe con |)
-    testo = re.sub(r"^\|.*\|$", "", testo, flags=re.MULTILINE)
-    testo = re.sub(r"\n{3,}", "\n\n", testo)
-    return testo.strip()
-
-
-# ─── Sintesi Piper (offline) ────────────────────────────────────────────────
-
-
-def sintetizza_piper(voce_piper, testo: str, sample_rate: int) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        voce_piper.synthesize_wav(testo, wf)
-    return buf.getvalue()
+# ─── Utilità audio ───────────────────────────────────────────────────────────
 
 
 def wav_a_mp3(wav_bytes: bytes, output_path: Path):
@@ -157,20 +79,6 @@ def concatena_wav(lista_wav: list[bytes], sample_rate: int) -> bytes:
         for wav_bytes in lista_wav:
             with wave.open(io.BytesIO(wav_bytes), "rb") as wf_in:
                 wf_out.writeframes(wf_in.readframes(wf_in.getnframes()))
-    return buf.getvalue()
-
-
-# ─── Sintesi Edge TTS (online) ──────────────────────────────────────────────
-
-
-async def sintetizza_edge(voice_id: str, testo: str) -> bytes:
-    import edge_tts
-
-    comm = edge_tts.Communicate(testo, voice_id)
-    buf = io.BytesIO()
-    async for chunk in comm.stream():
-        if chunk["type"] == "audio":
-            buf.write(chunk["data"])
     return buf.getvalue()
 
 
