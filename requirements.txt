@@ -2,3 +2,4 @@ edge-tts==7.2.7
 flask==3.1.0
 pathvalidate==3.3.1
 piper-tts==1.4.1
+pytest==9.0.2
