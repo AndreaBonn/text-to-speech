@@ -419,6 +419,177 @@ class TestScaricaVocePiper:
 
 
 # ===========================================================================
+# Test — cross-platform: _trova_player, _ha_player, suggerisci_installazione
+# ===========================================================================
+
+
+class TestTrovaPlayer:
+    """Test per la selezione del player audio in base all'OS."""
+
+    def test_linux_wav_con_aplay(self):
+        """Su Linux con aplay disponibile, deve usare aplay per WAV."""
+        from leggi import _trova_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "linux"), patch(
+            "leggi.shutil.which", return_value="/usr/bin/aplay"
+        ):
+            cmd, stdin = _trova_player("wav")
+
+        # Assert
+        assert cmd[0] == "aplay"
+        assert stdin is True
+
+    def test_linux_mp3_con_ffplay(self):
+        """Su Linux deve usare ffplay per MP3."""
+        from leggi import _trova_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "linux"), patch(
+            "leggi.shutil.which", return_value="/usr/bin/ffplay"
+        ):
+            cmd, stdin = _trova_player("mp3")
+
+        # Assert
+        assert cmd[0] == "ffplay"
+        assert stdin is True
+
+    def test_darwin_con_afplay(self):
+        """Su macOS con afplay disponibile, deve usare afplay."""
+        from leggi import _trova_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "darwin"), patch(
+            "leggi.shutil.which", return_value="/usr/bin/afplay"
+        ):
+            cmd, stdin = _trova_player("mp3")
+
+        # Assert
+        assert cmd == ["afplay"]
+        assert stdin is False
+
+    def test_darwin_fallback_ffplay(self):
+        """Su macOS senza afplay, deve usare ffplay come fallback."""
+        from leggi import _trova_player
+
+        # Arrange
+        def which_side_effect(name):
+            return "/usr/bin/ffplay" if name == "ffplay" else None
+
+        # Act
+        with patch("leggi.PLATFORM", "darwin"), patch(
+            "leggi.shutil.which", side_effect=which_side_effect
+        ):
+            cmd, stdin = _trova_player("mp3")
+
+        # Assert
+        assert cmd[0] == "ffplay"
+        assert stdin is True
+
+    def test_win32_con_ffplay(self):
+        """Su Windows con ffplay deve usare ffplay."""
+        from leggi import _trova_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "win32"), patch(
+            "leggi.shutil.which", return_value="C:\\ffplay.exe"
+        ):
+            cmd, stdin = _trova_player("wav")
+
+        # Assert
+        assert cmd[0] == "ffplay"
+        assert stdin is True
+
+    def test_nessun_player_disponibile(self):
+        """Senza player, deve restituire lista vuota."""
+        from leggi import _trova_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "linux"), patch("leggi.shutil.which", return_value=None):
+            cmd, stdin = _trova_player("wav")
+
+        # Assert
+        assert cmd == []
+        assert stdin is False
+
+
+class TestHaPlayer:
+    """Test per il check di disponibilità player."""
+
+    def test_ha_player_true(self):
+        """Deve restituire True se un player è disponibile."""
+        from leggi import _ha_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "linux"), patch(
+            "leggi.shutil.which", return_value="/usr/bin/aplay"
+        ):
+            risultato = _ha_player("wav")
+
+        # Assert
+        assert risultato is True
+
+    def test_ha_player_false(self):
+        """Deve restituire False se nessun player è disponibile."""
+        from leggi import _ha_player
+
+        # Arrange & Act
+        with patch("leggi.PLATFORM", "win32"), patch("leggi.shutil.which", return_value=None):
+            risultato = _ha_player("mp3")
+
+        # Assert
+        assert risultato is False
+
+
+class TestSuggerisciInstallazione:
+    """Test per i messaggi di installazione OS-specifici."""
+
+    def test_linux_ffmpeg(self):
+        """Su Linux deve suggerire apt/dnf/pacman per ffmpeg."""
+        from config import suggerisci_installazione
+
+        # Act
+        with patch("config.PLATFORM", "linux"):
+            msg = suggerisci_installazione("ffmpeg")
+
+        # Assert
+        assert "apt" in msg
+
+    def test_darwin_ffmpeg(self):
+        """Su macOS deve suggerire brew per ffmpeg."""
+        from config import suggerisci_installazione
+
+        # Act
+        with patch("config.PLATFORM", "darwin"):
+            msg = suggerisci_installazione("ffmpeg")
+
+        # Assert
+        assert "brew" in msg
+
+    def test_win32_ffmpeg(self):
+        """Su Windows deve suggerire choco/scoop per ffmpeg."""
+        from config import suggerisci_installazione
+
+        # Act
+        with patch("config.PLATFORM", "win32"):
+            msg = suggerisci_installazione("ffmpeg")
+
+        # Assert
+        assert "choco" in msg
+
+    def test_pacchetto_sconosciuto(self):
+        """Per pacchetti non mappati deve restituire messaggio generico."""
+        from config import suggerisci_installazione
+
+        # Act
+        with patch("config.PLATFORM", "linux"):
+            msg = suggerisci_installazione("pacchetto_inesistente")
+
+        # Assert
+        assert "package manager" in msg
+
+
+# ===========================================================================
 # Test — mostra_paragrafo
 # ===========================================================================
 

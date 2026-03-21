@@ -35,6 +35,7 @@ from config import (
     DATA_OUTPUT,
     EDGE_VOICES,
     PIPER_VOICES,
+    PLATFORM,
     VOICE_MODEL,
     VOICE_JSON,
     ALL_VOICES,
@@ -43,6 +44,7 @@ from config import (
     NC,
     info,
     error,
+    suggerisci_installazione,
 )
 from synthesis import scarica_voce_piper, sintetizza_piper, sintetizza_edge
 
@@ -104,16 +106,70 @@ def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
 # ─── Riproduzione audio ─────────────────────────────────────────────────────
 
 
-def riproduci_audio(audio_bytes: bytes, formato: str):
-    if formato == "wav":
-        subprocess.run(["aplay", "-q", "-"], input=audio_bytes, check=False, timeout=60)
+def _trova_player(formato: str) -> tuple[list[str], bool]:
+    """Trova il comando di riproduzione audio per l'OS corrente.
+
+    Parameters
+    ----------
+    formato : str
+        Formato audio: "wav" o "mp3".
+
+    Returns
+    -------
+    tuple[list[str], bool]
+        (comando con argomenti, supporta_stdin). Se supporta_stdin è False,
+        il comando richiede un file temporaneo.
+    """
+    if PLATFORM == "darwin":
+        # afplay: nativo macOS, supporta WAV e MP3, ma non stdin
+        if shutil.which("afplay"):
+            return ["afplay"], False
+        if shutil.which("ffplay"):
+            return ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"], True
+
+    elif PLATFORM == "win32":
+        # Windows: ffplay è il player principale (incluso in ffmpeg)
+        if shutil.which("ffplay"):
+            return ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"], True
+
     else:
-        subprocess.run(
-            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"],
-            input=audio_bytes,
-            check=False,
-            timeout=60,
-        )
+        # Linux: aplay per WAV, ffplay per MP3
+        if formato == "wav" and shutil.which("aplay"):
+            return ["aplay", "-q", "-"], True
+        if shutil.which("ffplay"):
+            return ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"], True
+
+    return [], False
+
+
+def _ha_player(formato: str) -> bool:
+    """Verifica se un player audio è disponibile per il formato sull'OS corrente."""
+    cmd, _ = _trova_player(formato)
+    return len(cmd) > 0
+
+
+def riproduci_audio(audio_bytes: bytes, formato: str):
+    """Riproduce audio usando il player disponibile sull'OS corrente."""
+    cmd, supporta_stdin = _trova_player(formato)
+    if not cmd:
+        error(f"Nessun player audio trovato per {formato}.")
+        error(f"Installa ffmpeg:\n         {suggerisci_installazione('ffmpeg')}")
+        return
+
+    if supporta_stdin:
+        subprocess.run(cmd, input=audio_bytes, check=False, timeout=60)
+    else:
+        # afplay (macOS) non supporta stdin: usa file temporaneo
+        import tempfile
+
+        ext = f".{formato}"
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+        try:
+            subprocess.run(cmd + [tmp_path], check=False, timeout=60)
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 # ─── Lettura con Piper TTS ──────────────────────────────────────────────────
@@ -126,13 +182,15 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
         error("Piper non trovato. Installa con: pip install piper-tts")
         sys.exit(1)
 
-    riproduce = shutil.which("aplay") is not None
+    riproduce = _ha_player("wav")
     if not riproduce and salva_path is None:
-        error("aplay non trovato. Installa con: sudo apt install alsa-utils")
+        error(
+            f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {suggerisci_installazione('ffmpeg')}"
+        )
         sys.exit(1)
 
     if salva_path and not shutil.which("ffmpeg"):
-        error("ffmpeg non trovato. Installa con: sudo apt install ffmpeg")
+        error(f"ffmpeg non trovato.\n         {suggerisci_installazione('ffmpeg')}")
         sys.exit(1)
 
     info("Carico la voce Paola...")
@@ -192,9 +250,11 @@ def leggi_con_edge(
         sys.exit(1)
 
     voice_id = EDGE_VOICES[voice_name]
-    riproduce = shutil.which("ffplay") is not None
+    riproduce = _ha_player("mp3")
     if not riproduce and salva_path is None:
-        error("ffplay non trovato. Installa con: sudo apt install ffmpeg")
+        error(
+            f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {suggerisci_installazione('ffmpeg')}"
+        )
         sys.exit(1)
 
     paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
@@ -252,16 +312,28 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
 
 async def _riproduci_async(mp3_bytes: bytes):
     """Riproduce MP3 in modo non-bloccante per l'event loop."""
-    proc = await asyncio.create_subprocess_exec(
-        "ffplay",
-        "-nodisp",
-        "-autoexit",
-        "-loglevel",
-        "error",
-        "-",
-        stdin=asyncio.subprocess.PIPE,
-    )
-    await proc.communicate(input=mp3_bytes)
+    cmd, supporta_stdin = _trova_player("mp3")
+    if not cmd:
+        return
+
+    if supporta_stdin:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+        )
+        await proc.communicate(input=mp3_bytes)
+    else:
+        # afplay (macOS): richiede file temporaneo
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp.write(mp3_bytes)
+            tmp_path = tmp.name
+        try:
+            proc = await asyncio.create_subprocess_exec(*cmd, tmp_path)
+            await proc.wait()
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 # ─── Utilità UI ──────────────────────────────────────────────────────────────

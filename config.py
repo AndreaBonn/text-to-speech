@@ -3,6 +3,7 @@ config.py
 Configurazione centralizzata: voci TTS, path modelli, costanti di progetto.
 """
 
+import sys
 from pathlib import Path
 
 # ─── Directory di progetto ───────────────────────────────────────────────────
@@ -76,6 +77,30 @@ FILE_STYLE_DEFAULTS = {
     ".htm": "notiziario",
     ".pdf": "neutro",
 }
+
+# ─── Piattaforma e dipendenze di sistema ────────────────────────────────────
+
+PLATFORM = sys.platform  # "linux", "darwin", "win32"
+
+_INSTALL_COMMANDS = {
+    "linux": {
+        "ffmpeg": "sudo apt install ffmpeg  (Debian/Ubuntu)\n         sudo dnf install ffmpeg  (Fedora)\n         sudo pacman -S ffmpeg    (Arch)",
+        "alsa-utils": "sudo apt install alsa-utils  (Debian/Ubuntu)\n              sudo dnf install alsa-utils  (Fedora)\n              sudo pacman -S alsa-utils    (Arch)",
+    },
+    "darwin": {
+        "ffmpeg": "brew install ffmpeg",
+    },
+    "win32": {
+        "ffmpeg": "choco install ffmpeg   (Chocolatey)\n         scoop install ffmpeg   (Scoop)",
+    },
+}
+
+
+def suggerisci_installazione(pacchetto: str) -> str:
+    """Restituisce il comando di installazione per il pacchetto sull'OS corrente."""
+    comandi = _INSTALL_COMMANDS.get(PLATFORM, {})
+    return comandi.get(pacchetto, f"Installa '{pacchetto}' con il package manager del tuo sistema")
+
 
 # ─── Colori terminale ────────────────────────────────────────────────────────
 

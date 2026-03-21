@@ -19,15 +19,45 @@ e pronuncia correttamente anche i termini inglesi nel testo italiano.
 
 - Python 3.10+
 - ffmpeg (conversione e riproduzione audio)
-- aplay (riproduzione CLI, incluso in `alsa-utils` su Linux)
 - pandoc (opzionale, migliora la conversione Markdown)
+
+La CLI rileva automaticamente il sistema operativo e usa il player audio
+appropriato: `aplay` su Linux, `afplay` su macOS, `ffplay` su Windows.
+Se il player nativo non è disponibile, `ffplay` (incluso in ffmpeg) viene
+usato come fallback su tutti i sistemi.
 
 ## Installazione
 
-### Dipendenze di sistema (Ubuntu/Debian)
+### Dipendenze di sistema
 
+**Linux (Debian/Ubuntu)**
 ```bash
 sudo apt install ffmpeg alsa-utils pandoc
+```
+
+**Linux (Fedora)**
+```bash
+sudo dnf install ffmpeg alsa-utils pandoc
+```
+
+**Linux (Arch)**
+```bash
+sudo pacman -S ffmpeg alsa-utils pandoc
+```
+
+**macOS**
+```bash
+brew install ffmpeg pandoc
+```
+`afplay` è già incluso in macOS, non serve installarlo.
+
+**Windows**
+```powershell
+# Con Chocolatey
+choco install ffmpeg pandoc
+
+# Oppure con Scoop
+scoop install ffmpeg pandoc
 ```
 
 ### Progetto
@@ -36,7 +66,9 @@ sudo apt install ffmpeg alsa-utils pandoc
 git clone https://github.com/AndreaBonn/text-to-speech.git
 cd text-to-speech
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # Linux/macOS
+# venv\Scripts\activate         # Windows (cmd)
+# venv\Scripts\Activate.ps1     # Windows (PowerShell)
 pip install -r requirements.txt
 ```
 
