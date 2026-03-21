@@ -45,6 +45,7 @@ from config import (
     info,
     error,
     suggerisci_installazione,
+    verifica_prerequisiti,
 )
 from synthesis import scarica_voce_piper, sintetizza_piper, sintetizza_edge
 
@@ -407,6 +408,10 @@ struttura output (con --salva):
         help="Salva l'audio in data/output/<nome_file>/",
     )
     args = parser.parse_args()
+
+    errori = verifica_prerequisiti(modalita="cli")
+    if errori:
+        sys.exit(1)
 
     if not args.file.exists():
         error(f"File non trovato: {args.file}")

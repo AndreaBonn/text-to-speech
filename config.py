@@ -3,6 +3,7 @@ config.py
 Configurazione centralizzata: voci TTS, path modelli, costanti di progetto.
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -100,6 +101,50 @@ def suggerisci_installazione(pacchetto: str) -> str:
     """Restituisce il comando di installazione per il pacchetto sull'OS corrente."""
     comandi = _INSTALL_COMMANDS.get(PLATFORM, {})
     return comandi.get(pacchetto, f"Installa '{pacchetto}' con il package manager del tuo sistema")
+
+
+def verifica_prerequisiti(modalita: str = "cli") -> list[str]:
+    """Verifica le dipendenze di sistema e stampa warning/errori.
+
+    Parameters
+    ----------
+    modalita : str
+        "cli" per leggi.py (serve player audio), "web" per app.py (serve solo ffmpeg).
+
+    Returns
+    -------
+    list[str]
+        Lista di errori critici. Vuota se tutto OK.
+    """
+    errori = []
+
+    # ffmpeg: obbligatorio per entrambe le modalità
+    if not shutil.which("ffmpeg"):
+        msg = f"ffmpeg non trovato (obbligatorio).\n         {suggerisci_installazione('ffmpeg')}"
+        error(msg)
+        errori.append("ffmpeg")
+
+    # Player audio: rilevante solo per CLI
+    if modalita == "cli":
+        ha_player = False
+        if PLATFORM == "darwin":
+            ha_player = bool(shutil.which("afplay") or shutil.which("ffplay"))
+        elif PLATFORM == "win32":
+            ha_player = bool(shutil.which("ffplay"))
+        else:
+            ha_player = bool(shutil.which("aplay") or shutil.which("ffplay"))
+
+        if not ha_player:
+            warn("Nessun player audio trovato. La riproduzione non funzionerà.")
+            warn(
+                f"Installa ffmpeg (include ffplay):\n         {suggerisci_installazione('ffmpeg')}"
+            )
+
+    # pandoc: opzionale
+    if not shutil.which("pandoc"):
+        warn("pandoc non trovato (opzionale, migliora la conversione Markdown)")
+
+    return errori
 
 
 # ─── Colori terminale ────────────────────────────────────────────────────────

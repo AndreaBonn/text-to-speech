@@ -60,7 +60,23 @@ choco install ffmpeg pandoc
 scoop install ffmpeg pandoc
 ```
 
-### Progetto
+### Setup automatico (consigliato)
+
+```bash
+git clone https://github.com/AndreaBonn/text-to-speech.git
+cd text-to-speech
+
+# Linux/macOS
+bash scripts/setup.sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+Lo script verifica Python 3.10+, controlla le dipendenze di sistema,
+crea il virtual environment e installa i pacchetti Python.
+
+### Setup manuale
 
 ```bash
 git clone https://github.com/AndreaBonn/text-to-speech.git
@@ -151,6 +167,9 @@ text-to-speech/
 ├── tests/
 │   ├── conftest.py     # Fixture condivise (client, engine)
 │   └── test_*.py       # Test suite (pytest)
+├── scripts/
+│   ├── setup.sh       # Setup automatico Linux/macOS
+│   └── setup.ps1      # Setup automatico Windows
 ├── data/
 │   ├── input/          # File sorgente da leggere
 │   └── output/         # Audio generato con --salva

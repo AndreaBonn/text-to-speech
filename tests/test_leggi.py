@@ -590,6 +590,87 @@ class TestSuggerisciInstallazione:
 
 
 # ===========================================================================
+# Test — verifica_prerequisiti
+# ===========================================================================
+
+
+class TestVerificaPrerequisiti:
+    """Test per il check delle dipendenze di sistema all'avvio."""
+
+    def test_tutto_presente_nessun_errore(self):
+        """Con tutte le dipendenze presenti, deve restituire lista vuota."""
+        from config import verifica_prerequisiti
+
+        # Arrange & Act
+        with patch("config.PLATFORM", "linux"), patch(
+            "config.shutil.which", return_value="/usr/bin/found"
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert
+        assert errori == []
+
+    def test_ffmpeg_mancante_errore_critico(self):
+        """Senza ffmpeg deve restituire errore critico."""
+        from config import verifica_prerequisiti
+
+        # Arrange
+        def which_side_effect(name):
+            return None if name == "ffmpeg" else "/usr/bin/found"
+
+        # Act
+        with patch("config.PLATFORM", "linux"), patch(
+            "config.shutil.which", side_effect=which_side_effect
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert
+        assert "ffmpeg" in errori
+
+    def test_modalita_web_non_controlla_player(self):
+        """In modalità web non deve controllare il player audio."""
+        from config import verifica_prerequisiti
+
+        # Arrange
+        def which_side_effect(name):
+            if name == "ffmpeg":
+                return "/usr/bin/ffmpeg"
+            if name == "pandoc":
+                return "/usr/bin/pandoc"
+            return None  # nessun player audio
+
+        # Act
+        with patch("config.PLATFORM", "linux"), patch(
+            "config.shutil.which", side_effect=which_side_effect
+        ):
+            errori = verifica_prerequisiti(modalita="web")
+
+        # Assert — nessun errore, anche senza player
+        assert errori == []
+
+    def test_pandoc_mancante_solo_warning(self, capsys):
+        """Pandoc mancante deve generare warning, non errore critico."""
+        from config import verifica_prerequisiti
+
+        # Arrange
+        def which_side_effect(name):
+            if name == "pandoc":
+                return None
+            return "/usr/bin/found"
+
+        # Act
+        with patch("config.PLATFORM", "linux"), patch(
+            "config.shutil.which", side_effect=which_side_effect
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert
+        assert errori == []
+        captured = capsys.readouterr()
+        assert "pandoc" in captured.out
+
+
+# ===========================================================================
 # Test — mostra_paragrafo
 # ===========================================================================
 

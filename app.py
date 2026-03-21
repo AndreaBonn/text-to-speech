@@ -208,6 +208,12 @@ def api_save():
 
 
 if __name__ == "__main__":
+    from config import verifica_prerequisiti
+
+    errori = verifica_prerequisiti(modalita="web")
+    if errori:
+        raise SystemExit(1)
+
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     print("\n  TTS Reader Web UI")
     print("  http://localhost:5000\n")
