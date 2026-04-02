@@ -382,9 +382,9 @@ class TestVoicesMeta:
         # Assert
         campi = {"id", "label", "type", "multilingual", "gender"}
         for voce in VOICES_META:
-            assert (
-                campi <= voce.keys()
-            ), f"Voce '{voce.get('id')}' mancante di: {campi - voce.keys()}"
+            assert campi <= voce.keys(), (
+                f"Voce '{voce.get('id')}' mancante di: {campi - voce.keys()}"
+            )
 
     def test_voices_meta_type_validi(self):
         """Il type di ogni voce deve essere 'edge' o 'piper'."""

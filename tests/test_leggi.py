@@ -64,12 +64,12 @@ class TestVoiceConstants:
 
         # Assert
         for name, edge_id in EDGE_VOICES.items():
-            assert edge_id.startswith(
-                "it-IT-"
-            ), f"Voce '{name}' ha ID '{edge_id}' che non inizia con 'it-IT-'"
-            assert edge_id.endswith(
-                "Neural"
-            ), f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
+            assert edge_id.startswith("it-IT-"), (
+                f"Voce '{name}' ha ID '{edge_id}' che non inizia con 'it-IT-'"
+            )
+            assert edge_id.endswith("Neural"), (
+                f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
+            )
 
     def test_voice_urls_point_to_existing_files(self):
         """VOICE_URLS deve avere entry per modello e config JSON."""

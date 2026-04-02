@@ -353,12 +353,12 @@ class TestTTSEnginePrefetch:
         with patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3):
             # Act
             engine_con_testo.prefetch(0, "giuseppe")
-            # Attendi il completamento del thread
+            # Attendi il completamento del thread (mock deve restare attivo)
             time.sleep(0.5)
 
-        # Assert
-        assert "giuseppe:neutro:0" in engine_con_testo._cache
-        assert engine_con_testo._cache["giuseppe:neutro:0"] == fake_mp3
+            # Assert
+            assert "giuseppe:neutro:0" in engine_con_testo._cache
+            assert engine_con_testo._cache["giuseppe:neutro:0"] == fake_mp3
 
 
 # ===========================================================================
