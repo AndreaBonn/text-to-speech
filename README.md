@@ -1,34 +1,38 @@
 # TTS Reader
 
-Tool per leggere ad alta voce file di testo in italiano, con interfaccia web
-e da linea di comando. Supporta Markdown, TXT, EPUB, DOCX, HTML e PDF
-con 5 voci neurali italiane. La voce predefinita (Giuseppe) è multilingue
-e pronuncia correttamente anche i termini inglesi nel testo italiano.
+[![CI](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml)
 
-## Funzionalità
+> **[Leggi in italiano](README.it.md)**
 
-- Lettura ad alta voce di file di testo (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragrafo per paragrafo
-- 5 voci italiane: 4 online (Edge TTS) + 1 offline (Piper TTS)
-- Interfaccia web con player audio (play, pausa, stop, precedente, successivo, ripeti)
-- Interfaccia CLI per uso da terminale
-- Salvataggio audio in MP3 (file unico + singoli paragrafi)
-- Prefetch intelligente: sintetizza il paragrafo successivo durante la riproduzione
-- Conversione automatica Markdown in testo pulito (via pandoc o regex fallback)
+A tool for reading text files aloud in Italian, with both a web interface and
+a command-line interface. Supports Markdown, TXT, EPUB, DOCX, HTML, and PDF
+with 5 Italian neural voices. The default voice (Giuseppe) is multilingual
+and correctly pronounces English terms within Italian text.
 
-## Requisiti di sistema
+## Features
+
+- Read text files aloud (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragraph by paragraph
+- 5 Italian voices: 4 online (Edge TTS) + 1 offline (Piper TTS)
+- Web interface with audio player (play, pause, stop, previous, next, repeat)
+- CLI for terminal usage
+- Save audio as MP3 (single file + individual paragraphs)
+- Smart prefetch: synthesizes the next paragraph during playback
+- Automatic Markdown-to-plain-text conversion (via pandoc or regex fallback)
+
+## System Requirements
 
 - Python 3.10+
-- ffmpeg (conversione e riproduzione audio)
-- pandoc (opzionale, migliora la conversione Markdown)
+- ffmpeg (audio conversion and playback)
+- pandoc (optional, improves Markdown conversion)
 
-La CLI rileva automaticamente il sistema operativo e usa il player audio
-appropriato: `aplay` su Linux, `afplay` su macOS, `ffplay` su Windows.
-Se il player nativo non è disponibile, `ffplay` (incluso in ffmpeg) viene
-usato come fallback su tutti i sistemi.
+The CLI automatically detects the operating system and uses the appropriate
+audio player: `aplay` on Linux, `afplay` on macOS, `ffplay` on Windows.
+If the native player is unavailable, `ffplay` (included with ffmpeg) is used
+as a fallback on all systems.
 
-## Installazione
+## Installation
 
-### Dipendenze di sistema
+### System Dependencies
 
 **Linux (Debian/Ubuntu)**
 ```bash
@@ -49,18 +53,18 @@ sudo pacman -S ffmpeg alsa-utils pandoc
 ```bash
 brew install ffmpeg pandoc
 ```
-`afplay` è già incluso in macOS, non serve installarlo.
+`afplay` is already included in macOS.
 
 **Windows**
 ```powershell
-# Con Chocolatey
+# With Chocolatey
 choco install ffmpeg pandoc
 
-# Oppure con Scoop
+# Or with Scoop
 scoop install ffmpeg pandoc
 ```
 
-### Setup automatico (consigliato)
+### Automated Setup (Recommended)
 
 ```bash
 git clone https://github.com/AndreaBonn/text-to-speech.git
@@ -73,10 +77,10 @@ bash scripts/setup.sh
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 ```
 
-Lo script verifica Python 3.10+, controlla le dipendenze di sistema,
-crea il virtual environment e installa i pacchetti Python.
+The script checks for Python 3.10+, verifies system dependencies,
+creates a virtual environment, and installs Python packages.
 
-### Setup manuale
+### Manual Setup
 
 ```bash
 git clone https://github.com/AndreaBonn/text-to-speech.git
@@ -88,115 +92,116 @@ source venv/bin/activate        # Linux/macOS
 pip install -r requirements.txt
 ```
 
-## Uso
+## Usage
 
-### Interfaccia web
+### Web Interface
 
 ```bash
 source venv/bin/activate
 python app.py
 ```
 
-Apri **http://localhost:5000** nel browser. L'interfaccia permette di:
+Open **http://localhost:5000** in your browser. The interface allows you to:
 
-- Caricare un file dal disco (MD, TXT, EPUB, DOCX, HTML, PDF)
-- Scegliere la voce dal menu a tendina
-- Usare i controlli player: play/pausa, stop, precedente, successivo, ripeti
-- Cliccare sulla barra di progresso per saltare a qualsiasi paragrafo
-- Scaricare l'audio completo in MP3
+- Upload a file from disk (MD, TXT, EPUB, DOCX, HTML, PDF)
+- Choose a voice from the dropdown menu
+- Use player controls: play/pause, stop, previous, next, repeat
+- Click the progress bar to jump to any paragraph
+- Download the complete audio as MP3
 
-Scorciatoie tastiera: `Spazio` play/pausa, `freccia sinistra/destra` prev/next, `R` ripeti.
+Keyboard shortcuts: `Space` play/pause, `Left/Right arrow` prev/next, `R` repeat.
 
-### Linea di comando
+### Command Line
 
 ```bash
 source venv/bin/activate
 
-# Lettura con voce predefinita (Giuseppe, multilingue)
+# Read with default voice (Giuseppe, multilingual)
 python leggi.py file.md
 
-# Scelta voce
+# Choose a voice
 python leggi.py file.md --voice isabella
 
-# Voce offline (non serve internet)
+# Offline voice (no internet required)
 python leggi.py file.md --voice paola
 
-# Salvataggio in MP3
+# Save as MP3
 python leggi.py file.md --voice giuseppe --salva
 ```
 
-Con `--salva` viene creata la struttura:
+With `--salva`, the following structure is created:
 ```
-data/output/<nome_file>/
-├── full/<nome_file>.mp3       # Audio completo
+data/output/<filename>/
+├── full/<filename>.mp3       # Complete audio
 └── paragraphs/
-    ├── 001.mp3                # Singoli paragrafi
+    ├── 001.mp3                # Individual paragraphs
     ├── 002.mp3
     └── ...
 ```
 
-## Voci disponibili
+## Available Voices
 
-| Voce | Motore | Genere | Multilingue | Richiede internet |
-|------|--------|--------|-------------|-------------------|
-| giuseppe | Edge TTS | Maschile | Si (IT/EN) | Si |
-| isabella | Edge TTS | Femminile | No | Si |
-| elsa | Edge TTS | Femminile | No | Si |
-| diego | Edge TTS | Maschile | No | Si |
-| paola | Piper TTS | Femminile | No | No (offline) |
+| Voice | Engine | Gender | Multilingual | Requires Internet |
+|-------|--------|--------|--------------|-------------------|
+| giuseppe | Edge TTS | Male | Yes (IT/EN) | Yes |
+| isabella | Edge TTS | Female | No | Yes |
+| elsa | Edge TTS | Female | No | Yes |
+| diego | Edge TTS | Male | No | Yes |
+| paola | Piper TTS | Female | No | No (offline) |
 
-La voce **Giuseppe** è consigliata per testi tecnici con termini inglesi.
-La voce **Paola** funziona senza connessione internet (il modello viene
-scaricato automaticamente al primo utilizzo, circa 60 MB).
+**Giuseppe** is recommended for technical texts with English terms.
+**Paola** works without an internet connection (the model is automatically
+downloaded on first use, approximately 60 MB).
 
-## Struttura progetto
+## Security
+
+This project implements multiple security layers. See [SECURITY.md](SECURITY.md)
+for a detailed overview of all mechanisms in place.
+
+## Project Structure
 
 ```
 text-to-speech/
-├── app.py              # Server Flask per interfaccia web
-├── tts_engine.py       # Motore TTS con cache e prefetch
-├── synthesis.py        # Funzioni di sintesi vocale (Piper, Edge)
-├── config.py           # Configurazione voci, path modelli, costanti
-├── leggi.py            # CLI: lettura da terminale
-├── converters.py       # Convertitori formato → testo piano
+├── app.py              # Flask web server
+├── tts_engine.py       # TTS engine with cache and prefetch
+├── synthesis.py        # Speech synthesis functions (Piper, Edge)
+├── config.py           # Voice configuration, model paths, constants
+├── leggi.py            # CLI: terminal reading
+├── converters.py       # Format converters → plain text
 ├── static/
-│   ├── style.css       # Design system (Inchiostro e Ambra)
-│   └── player.js       # Player audio JavaScript
+│   ├── style.css       # Design system (Ink & Amber)
+│   └── player.js       # JavaScript audio player
 ├── templates/
-│   └── index.html      # Interfaccia web (solo markup HTML)
+│   └── index.html      # Web interface (HTML only)
 ├── tests/
-│   ├── conftest.py     # Fixture condivise (client, engine)
+│   ├── conftest.py     # Shared fixtures (client, engine)
 │   └── test_*.py       # Test suite (pytest)
 ├── scripts/
-│   ├── setup.sh       # Setup automatico Linux/macOS
-│   └── setup.ps1      # Setup automatico Windows
+│   ├── setup.sh       # Automated setup Linux/macOS
+│   └── setup.ps1      # Automated setup Windows
 ├── data/
-│   ├── input/          # File sorgente da leggere
-│   └── output/         # Audio generato con --salva
-├── docs/               # Documentazione e report attività
-├── requirements.txt    # Dipendenze Python
-├── CLAUDE.md           # Istruzioni per Claude Code
-├── LICENSE             # GPL-3.0
+│   ├── input/          # Source files to read
+│   └── output/         # Audio generated with --salva
+├── requirements.txt    # Python dependencies
 └── README.md
 ```
 
-## Licenza
+## License
 
-Questo progetto è rilasciato sotto licenza **GPL-3.0**. Vedi il file
-[LICENSE](LICENSE) per i dettagli.
+This project is released under the **GPL-3.0** license. See the
+[LICENSE](LICENSE) file for details.
 
-## Avvertenze
+## Disclaimers
 
-Le voci Edge TTS (giuseppe, isabella, elsa, diego) utilizzano un'API non
-ufficiale di Microsoft Edge "Read Aloud". Questo servizio non è garantito
-e potrebbe cessare di funzionare in qualsiasi momento. Non è autorizzato
-per uso commerciale. Per applicazioni commerciali si consiglia
-[Azure AI Speech](https://azure.microsoft.com/it-it/products/ai-services/text-to-speech).
+Edge TTS voices (giuseppe, isabella, elsa, diego) use an unofficial
+Microsoft Edge "Read Aloud" API. This service is not guaranteed and may
+stop working at any time. It is not authorized for commercial use.
+For commercial applications, consider
+[Azure AI Speech](https://azure.microsoft.com/en-us/products/ai-services/text-to-speech).
 
-**Uso single-user**: l'applicazione web utilizza un'unica istanza del motore TTS
-condivisa tra tutte le richieste. Non è progettata per l'uso simultaneo da parte
-di più utenti. Se più utenti caricano file contemporaneamente, i dati verranno
-sovrascritti.
+**Single-user**: the web application uses a single shared TTS engine instance
+across all requests. It is not designed for simultaneous multi-user access.
+If multiple users upload files concurrently, data will be overwritten.
 
-La voce Paola (Piper TTS) è completamente offline e libera da restrizioni
-(dataset di addestramento sotto licenza CC0 public domain).
+The Paola voice (Piper TTS) is fully offline and free from restrictions
+(training dataset under CC0 public domain license).

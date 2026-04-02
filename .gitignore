@@ -21,6 +21,9 @@ output_paragrafi/
 # Markdown sorgenti (contenuti personali)
 *.md
 !README.md
+!README.it.md
+!SECURITY.md
+!SECURITY.it.md
 
 # Firebase / debug
 firebase-debug.log
