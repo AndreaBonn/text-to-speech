@@ -249,7 +249,7 @@ def leggi_con_edge(
         error("edge-tts non trovato. Installa con: pip install edge-tts")
         sys.exit(1)
 
-    voice_id = EDGE_VOICES[voice_name]
+    voice_id = EDGE_VOICES[voice_name]["edge_id"]
     riproduce = _ha_player("mp3")
     if not riproduce and salva_path is None:
         installa = suggerisci_installazione("ffmpeg")

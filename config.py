@@ -16,10 +16,13 @@ DATA_OUTPUT = PROJECT_ROOT / "data" / "output"
 # ─── Configurazione voci ─────────────────────────────────────────────────────
 
 EDGE_VOICES = {
-    "giuseppe": "it-IT-GiuseppeMultilingualNeural",
-    "isabella": "it-IT-IsabellaNeural",
-    "elsa": "it-IT-ElsaNeural",
-    "diego": "it-IT-DiegoNeural",
+    "giuseppe": {"edge_id": "it-IT-GiuseppeMultilingualNeural", "gender": "M", "lang": "it"},
+    "isabella": {"edge_id": "it-IT-IsabellaNeural", "gender": "F", "lang": "it"},
+    "elsa": {"edge_id": "it-IT-ElsaNeural", "gender": "F", "lang": "it"},
+    "diego": {"edge_id": "it-IT-DiegoNeural", "gender": "M", "lang": "it"},
+    "andrew": {"edge_id": "en-US-AndrewMultilingualNeural", "gender": "M", "lang": "en"},
+    "ava": {"edge_id": "en-US-AvaMultilingualNeural", "gender": "F", "lang": "en"},
+    "ryan": {"edge_id": "en-GB-RyanNeural", "gender": "M", "lang": "en"},
 }
 
 PIPER_VOICES = {"paola"}

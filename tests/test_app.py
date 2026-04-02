@@ -128,7 +128,7 @@ class TestIndexEndpoint:
 
 class TestVoicesEndpoint:
     def test_voices_endpoint(self, client):
-        """GET /api/voices deve restituire le 5 voci con struttura corretta."""
+        """GET /api/voices deve restituire le 8 voci con struttura corretta."""
         # Act
         response = client.get("/api/voices")
         data = response.get_json()
@@ -137,14 +137,14 @@ class TestVoicesEndpoint:
         assert response.status_code == 200
         assert "voices" in data
         assert "default" in data
-        assert len(data["voices"]) == 5
+        assert len(data["voices"]) == 8
 
         # Ogni voce deve avere i campi obbligatori
-        campi_obbligatori = {"id", "label", "type", "multilingual", "gender"}
+        campi_obbligatori = {"id", "label", "type", "multilingual", "gender", "lang"}
         for voce in data["voices"]:
-            assert campi_obbligatori <= voce.keys(), (
-                f"Voce {voce.get('id')} mancante di campi: {campi_obbligatori - voce.keys()}"
-            )
+            assert (
+                campi_obbligatori <= voce.keys()
+            ), f"Voce {voce.get('id')} mancante di campi: {campi_obbligatori - voce.keys()}"
 
         # Verifica che la voce di default esista nella lista
         ids_disponibili = {v["id"] for v in data["voices"]}

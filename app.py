@@ -42,12 +42,20 @@ VOICES_META = [
         "id": vid,
         "label": vid.capitalize(),
         "type": "edge",
-        "multilingual": "Multilingual" in edge_id,
-        "gender": "M" if vid in ("giuseppe", "diego") else "F",
+        "multilingual": "Multilingual" in info["edge_id"],
+        "gender": info["gender"],
+        "lang": info["lang"],
     }
-    for vid, edge_id in EDGE_VOICES.items()
+    for vid, info in EDGE_VOICES.items()
 ] + [
-    {"id": vid, "label": vid.capitalize(), "type": "piper", "multilingual": False, "gender": "F"}
+    {
+        "id": vid,
+        "label": vid.capitalize(),
+        "type": "piper",
+        "multilingual": False,
+        "gender": "F",
+        "lang": "it",
+    }
     for vid in sorted(PIPER_VOICES)
 ]
 

@@ -162,7 +162,7 @@ class TTSEngine:
             text = self._paragraphs[index]
 
         if voice in EDGE_VOICES:
-            voice_id = EDGE_VOICES[voice]
+            voice_id = EDGE_VOICES[voice]["edge_id"]
             params = READING_STYLES.get(style, READING_STYLES[DEFAULT_STYLE])
             future = asyncio.run_coroutine_threadsafe(
                 sintetizza_edge(voice_id, text, rate=params["rate"], pitch=params["pitch"]),

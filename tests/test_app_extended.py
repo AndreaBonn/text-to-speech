@@ -376,15 +376,15 @@ class TestVoicesMeta:
         assert meta_ids == set(ALL_VOICES)
 
     def test_voices_meta_campi_obbligatori(self):
-        """Ogni voce deve avere id, label, type, multilingual, gender."""
+        """Ogni voce deve avere id, label, type, multilingual, gender, lang."""
         from app import VOICES_META
 
         # Assert
-        campi = {"id", "label", "type", "multilingual", "gender"}
+        campi = {"id", "label", "type", "multilingual", "gender", "lang"}
         for voce in VOICES_META:
-            assert campi <= voce.keys(), (
-                f"Voce '{voce.get('id')}' mancante di: {campi - voce.keys()}"
-            )
+            assert (
+                campi <= voce.keys()
+            ), f"Voce '{voce.get('id')}' mancante di: {campi - voce.keys()}"
 
     def test_voices_meta_type_validi(self):
         """Il type di ogni voce deve essere 'edge' o 'piper'."""

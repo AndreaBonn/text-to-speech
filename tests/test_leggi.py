@@ -59,17 +59,23 @@ class TestVoiceConstants:
         assert DEFAULT_VOICE in EDGE_VOICES
 
     def test_edge_voices_have_valid_ids(self):
-        """Gli ID delle voci Edge devono seguire il pattern it-IT-*Neural."""
+        """Gli ID delle voci Edge devono seguire il pattern xx-XX-*Neural."""
         from config import EDGE_VOICES
 
         # Assert
-        for name, edge_id in EDGE_VOICES.items():
-            assert edge_id.startswith("it-IT-"), (
-                f"Voce '{name}' ha ID '{edge_id}' che non inizia con 'it-IT-'"
-            )
-            assert edge_id.endswith("Neural"), (
-                f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
-            )
+        for name, info in EDGE_VOICES.items():
+            edge_id = info["edge_id"]
+            assert edge_id.endswith(
+                "Neural"
+            ), f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
+            assert info["gender"] in (
+                "M",
+                "F",
+            ), f"Voce '{name}' ha genere '{info['gender']}' non valido"
+            assert info["lang"] in (
+                "it",
+                "en",
+            ), f"Voce '{name}' ha lingua '{info['lang']}' non valida"
 
     def test_voice_urls_point_to_existing_files(self):
         """VOICE_URLS deve avere entry per modello e config JSON."""
