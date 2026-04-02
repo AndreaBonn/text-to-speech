@@ -179,6 +179,54 @@ body {
   cursor: not-allowed;
 }
 
+/* Language switcher */
+.lang-switcher {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.lang-btn {
+  padding: 5px 10px;
+  background-color: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background-color var(--duration) var(--ease-out),
+              color var(--duration) var(--ease-out),
+              border-color var(--duration) var(--ease-out);
+}
+
+.lang-btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  border-right: none;
+}
+
+.lang-btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.lang-btn:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.lang-btn--active {
+  background-color: var(--accent);
+  color: #141210;
+  border-color: var(--accent);
+}
+
+.lang-btn--active:hover {
+  background-color: var(--accent-hover);
+  color: #141210;
+  border-color: var(--accent-hover);
+}
+
 /* Bottone salva */
 .btn-save {
   display: inline-flex;
@@ -196,7 +244,6 @@ body {
   transition: background-color var(--duration) var(--ease-out),
               border-color var(--duration) var(--ease-out);
   white-space: nowrap;
-  margin-left: auto;
 }
 
 .btn-save:hover {

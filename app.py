@@ -27,6 +27,7 @@ from config import (
     READING_STYLES,
 )
 from converters import SUPPORTED_EXTENSIONS
+from translations import get_lang, get_styles_meta, tr
 from tts_engine import TTSEngine
 
 app = Flask(__name__)
@@ -71,7 +72,8 @@ def add_security_headers(response):
 
 @app.errorhandler(413)
 def too_large(e):
-    return jsonify({"error": "File troppo grande (max 50 MB)"}), 413
+    lang = get_lang(request)
+    return jsonify({"error": tr(lang, "error.file_too_large")}), 413
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
@@ -84,10 +86,8 @@ def index():
 
 @app.route("/api/voices")
 def api_voices():
-    styles_meta = [
-        {"id": sid, "label": s["label"], "description": s["description"]}
-        for sid, s in READING_STYLES.items()
-    ]
+    lang = get_lang(request)
+    styles_meta = get_styles_meta(lang)
     return jsonify(
         {
             "voices": VOICES_META,
@@ -110,14 +110,16 @@ def _sanitize_filename(raw_name: str) -> str:
 @app.route("/api/load", methods=["POST"])
 def api_load():
     """Carica un file e restituisce i paragrafi."""
+    lang = get_lang(request)
+
     if "file" not in request.files:
-        return jsonify({"error": "Nessun file inviato"}), 400
+        return jsonify({"error": tr(lang, "error.no_file")}), 400
 
     file = request.files["file"]
     safe_name = _sanitize_filename(file.filename or "")
     if not safe_name:
         validi = ", ".join(sorted(SUPPORTED_EXTENSIONS))
-        return jsonify({"error": f"Formato non supportato. Formati validi: {validi}"}), 400
+        return jsonify({"error": tr(lang, "error.unsupported_format", formats=validi)}), 400
 
     ext = Path(safe_name).suffix.lower()
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False, mode="wb") as tmp:
@@ -146,23 +148,24 @@ def api_load():
 @app.route("/api/audio/<int:idx>")
 def api_audio(idx):
     """Restituisce l'MP3 sintetizzato per il paragrafo dato."""
+    lang = get_lang(request)
     voice = request.args.get("voice", DEFAULT_VOICE)
     style = request.args.get("style", DEFAULT_STYLE)
     if voice not in ALL_VOICES:
-        return jsonify({"error": f"Voce '{voice}' non valida"}), 400
+        return jsonify({"error": tr(lang, "error.invalid_voice", voice=voice)}), 400
     if style not in ALL_STYLES:
-        return jsonify({"error": f"Stile '{style}' non valido"}), 400
+        return jsonify({"error": tr(lang, "error.invalid_style", style=style)}), 400
 
     if not engine.paragraphs:
-        return jsonify({"error": "Nessun file caricato"}), 400
+        return jsonify({"error": tr(lang, "error.no_file_loaded")}), 400
 
     try:
         mp3_bytes = engine.get_audio(idx, voice, style)
     except IndexError:
-        return jsonify({"error": f"Paragrafo {idx} non esiste"}), 404
+        return jsonify({"error": tr(lang, "error.paragraph_not_found", idx=idx)}), 404
     except Exception:
         log.exception("Errore sintesi paragrafo %d con voce %s stile %s", idx, voice, style)
-        return jsonify({"error": "Errore durante la sintesi audio"}), 500
+        return jsonify({"error": tr(lang, "error.synthesis_failed")}), 500
 
     return Response(mp3_bytes, mimetype="audio/mpeg")
 
@@ -179,15 +182,16 @@ def api_prefetch(idx):
 @app.route("/api/save", methods=["POST"])
 def api_save():
     """Genera e scarica il file MP3 completo."""
+    lang = get_lang(request)
     data = request.get_json(silent=True) or {}
     voice = data.get("voice", DEFAULT_VOICE)
     style = data.get("style", DEFAULT_STYLE)
     if voice not in ALL_VOICES:
-        return jsonify({"error": f"Voce '{voice}' non valida"}), 400
+        return jsonify({"error": tr(lang, "error.invalid_voice", voice=voice)}), 400
     if style not in ALL_STYLES:
-        return jsonify({"error": f"Stile '{style}' non valido"}), 400
+        return jsonify({"error": tr(lang, "error.invalid_style", style=style)}), 400
     if not engine.paragraphs:
-        return jsonify({"error": "Nessun file caricato"}), 400
+        return jsonify({"error": tr(lang, "error.no_file_loaded")}), 400
 
     mp3_bytes = engine.save_all(voice, style)
 

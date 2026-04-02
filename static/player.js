@@ -58,6 +58,12 @@ class TtsPlayer {
 
     this._bindUI();
     this._loadVoices();
+
+    /* Ascolta cambio lingua per ricaricare stili e aggiornare UI */
+    document.addEventListener('i18n:changed', () => {
+      this._loadVoices();
+      this.updateUI();
+    });
   }
 
   /* ----------------------------------------------------------
@@ -65,11 +71,13 @@ class TtsPlayer {
   ---------------------------------------------------------- */
   async _loadVoices() {
     try {
-      const res  = await fetch('/api/voices');
+      const lang = i18nGetLang();
+      const res  = await fetch(`/api/voices?lang=${lang}`);
       const data = await res.json();
 
       /* Popola voci */
       const vSel = this._dom.voiceSelect;
+      const prevVoice = vSel.value;
       vSel.innerHTML = '';
       data.voices.forEach(v => {
         const opt  = document.createElement('option');
@@ -78,11 +86,12 @@ class TtsPlayer {
         opt.dataset.type = v.type;
         vSel.appendChild(opt);
       });
-      vSel.value         = data.default;
-      this.currentVoice  = data.default;
+      vSel.value         = prevVoice || data.default;
+      this.currentVoice  = vSel.value || data.default;
 
       /* Popola stili */
       const sSel = this._dom.styleSelect;
+      const prevStyle = sSel.value;
       sSel.innerHTML = '';
       data.styles.forEach(s => {
         const opt  = document.createElement('option');
@@ -91,13 +100,13 @@ class TtsPlayer {
         opt.title  = s.description;
         sSel.appendChild(opt);
       });
-      sSel.value         = data.default_style;
-      this.currentStyle  = data.default_style;
+      sSel.value         = prevStyle || data.default_style;
+      this.currentStyle  = sSel.value || data.default_style;
 
       this._updateStyleEnabled();
       this._updateSaveLink();
     } catch (err) {
-      console.error('Errore caricamento voci:', err);
+      console.error('Voice loading error:', err);
     }
   }
 
@@ -175,7 +184,7 @@ class TtsPlayer {
 
     /* Scorciatoie tastiera globali */
     document.addEventListener('keydown', (e) => {
-      /* Ignora se focus su input/select */
+      /* Ignora se focus su input/select/button lingua */
       const tag = document.activeElement.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
@@ -199,11 +208,12 @@ class TtsPlayer {
     this._setPlayIconLoading(true);
 
     try {
-      const res  = await fetch('/api/load', { method: 'POST', body: formData });
+      const lang = i18nGetLang();
+      const res  = await fetch(`/api/load?lang=${lang}`, { method: 'POST', body: formData });
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Errore nel caricamento del file.');
+        throw new Error(data.error || t('msg.loadError'));
       }
 
       this.paragraphs   = data.paragraphs;
@@ -235,7 +245,7 @@ class TtsPlayer {
     } catch (err) {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError('Errore nel caricamento: ' + err.message);
+      this._showError(t('msg.loadErrorDetail', { message: err.message }));
     }
   }
 
@@ -350,9 +360,9 @@ class TtsPlayer {
     /* Contatore */
     if (this.totalCount) {
       this._dom.progressCounter.textContent =
-        `Paragrafo ${this.currentIdx + 1} / ${this.totalCount}`;
+        t('progress.counter', { current: this.currentIdx + 1, total: this.totalCount });
     } else {
-      this._dom.progressCounter.textContent = 'Paragrafo — / —';
+      this._dom.progressCounter.textContent = t('progress.counterEmpty');
     }
 
     /* Progress bar */
@@ -362,7 +372,7 @@ class TtsPlayer {
     this._dom.progressFill.style.width = pct.toFixed(2) + '%';
     this._dom.progressBar.setAttribute('aria-valuenow', Math.round(pct));
     this._dom.progressBar.setAttribute('aria-valuetext',
-      `Paragrafo ${this.currentIdx + 1} di ${this.totalCount}`);
+      t('progress.valueText', { current: this.currentIdx + 1, total: this.totalCount }));
 
     /* Stato bottoni prev/next/start */
     this._dom.btnPrev.disabled  = !this.totalCount || this.currentIdx <= 0;
@@ -392,7 +402,7 @@ class TtsPlayer {
         const res = await fetch(url);
 
         if (!res.ok) {
-          let msg = 'Errore sintesi audio.';
+          let msg = t('msg.synthesisError');
           try { const d = await res.json(); msg = d.error || msg; } catch(_) {}
           throw new Error(msg);
         }
@@ -420,7 +430,7 @@ class TtsPlayer {
     } catch (err) {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError(`Errore sintesi: ${err.message} Riprova o cambia voce.`);
+      this._showError(t('msg.synthesisErrorDetail', { message: err.message }));
     }
   }
 
@@ -463,7 +473,7 @@ class TtsPlayer {
     if (this._state === 'loading' || this._state === 'playing') {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError('Errore di riproduzione audio. Riprova o cambia voce.');
+      this._showError(t('msg.playbackError'));
       this.updateUI();
     }
   }
@@ -511,7 +521,7 @@ class TtsPlayer {
     }
 
     this._dom.btnPlay.setAttribute('aria-label',
-      isPlaying ? 'Pausa' : 'Riproduci');
+      isPlaying ? t('player.pauseAria') : t('player.playAria'));
   }
 
   _setPlayIconLoading(loading) {
@@ -519,7 +529,7 @@ class TtsPlayer {
       this._dom.btnPlay.classList.add('is-loading');
       this._dom.iconPlay.classList.add('hidden');
       this._dom.iconPause.classList.add('hidden');
-      this._dom.btnPlay.setAttribute('aria-label', 'Caricamento audio...');
+      this._dom.btnPlay.setAttribute('aria-label', t('player.loadingAria'));
     } else {
       this._dom.btnPlay.classList.remove('is-loading');
       this._updatePlayIcon();
@@ -581,7 +591,8 @@ class TtsPlayer {
     btn.disabled = true;
 
     try {
-      const res = await fetch('/api/save', {
+      const lang = i18nGetLang();
+      const res = await fetch(`/api/save?lang=${lang}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voice, style }),
@@ -589,7 +600,7 @@ class TtsPlayer {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Errore ${res.status}`);
+        throw new Error(err.error || `Error ${res.status}`);
       }
 
       const blob = await res.blob();
@@ -603,7 +614,7 @@ class TtsPlayer {
       URL.revokeObjectURL(url);
 
     } catch (err) {
-      this._showError(`Salvataggio fallito: ${err.message}`);
+      this._showError(t('msg.saveFailed', { message: err.message }));
     } finally {
       btn.disabled = false;
     }
@@ -630,4 +641,5 @@ class TtsPlayer {
 /* ============================================================
    BOOTSTRAP
 ============================================================ */
+i18nInit();
 const player = new TtsPlayer();

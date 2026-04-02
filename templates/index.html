@@ -23,7 +23,7 @@
       type="file"
       id="file-input"
       accept=".md,.txt,.epub,.docx,.html,.htm,.pdf"
-      aria-label="Scegli file da leggere"
+      data-i18n-aria-label="toolbar.chooseFileAria"
     >
     <label for="file-input" class="btn-file">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -32,7 +32,7 @@
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
       </svg>
-      Scegli file
+      <span data-i18n="toolbar.chooseFile">Scegli file</span>
     </label>
     <span id="file-name" class="file-name" aria-live="polite" aria-atomic="true"></span>
 
@@ -40,17 +40,17 @@
 
     <!-- Selezione voce -->
     <div class="voice-wrapper">
-      <label for="voice-select" class="voice-label">Voce</label>
-      <select id="voice-select" aria-label="Selezione voce">
-        <option value="">Caricamento...</option>
+      <label for="voice-select" class="voice-label" data-i18n="toolbar.voice">Voce</label>
+      <select id="voice-select" data-i18n-aria-label="toolbar.voiceAria">
+        <option value="" data-i18n="toolbar.loading">Caricamento...</option>
       </select>
     </div>
 
     <!-- Selezione stile di lettura -->
     <div class="voice-wrapper">
-      <label for="style-select" class="voice-label">Stile</label>
-      <select id="style-select" aria-label="Stile di lettura">
-        <option value="">Caricamento...</option>
+      <label for="style-select" class="voice-label" data-i18n="toolbar.style">Stile</label>
+      <select id="style-select" data-i18n-aria-label="toolbar.styleAria">
+        <option value="" data-i18n="toolbar.loading">Caricamento...</option>
       </select>
     </div>
 
@@ -59,8 +59,8 @@
       id="btn-save"
       class="btn-save hidden"
       type="button"
-      aria-label="Scarica audio completo"
-      title="Scarica l'intero testo come MP3"
+      data-i18n-aria-label="toolbar.saveAria"
+      data-i18n-title="toolbar.saveTitle"
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -69,8 +69,14 @@
         <polyline points="7 10 12 15 17 10"/>
         <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      Salva MP3
+      <span data-i18n="toolbar.saveBtn">Salva MP3</span>
     </button>
+
+    <!-- Language switcher -->
+    <div class="lang-switcher" role="group" aria-label="Language">
+      <button class="lang-btn lang-btn--active" data-lang="it" aria-pressed="true">IT</button>
+      <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
+    </div>
   </header>
 
   <!-- ============================================================
@@ -94,7 +100,7 @@
     <button
       class="error-banner__close"
       id="btn-close-error"
-      aria-label="Chiudi messaggio di errore"
+      data-i18n-aria-label="error.closeAria"
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
@@ -121,8 +127,8 @@
           <line x1="16" y1="17" x2="8" y2="17"/>
           <polyline points="10 9 9 9 8 9"/>
         </svg>
-        <p class="empty-title">Carica un file per iniziare</p>
-        <p class="empty-sub">MD, TXT, EPUB, DOCX, HTML, PDF</p>
+        <p class="empty-title" data-i18n="empty.title">Carica un file per iniziare</p>
+        <p class="empty-sub" data-i18n="empty.formats">MD, TXT, EPUB, DOCX, HTML, PDF</p>
       </div>
 
       <!-- Paragrafo attivo (nascosto inizialmente) -->
@@ -146,29 +152,30 @@
         class="progress-bar-wrapper"
         id="progress-bar"
         role="slider"
-        aria-label="Avanzamento lettura"
+        data-i18n-aria-label="progress.aria"
         aria-valuemin="0"
         aria-valuemax="100"
         aria-valuenow="0"
         tabindex="0"
-        title="Clicca per saltare a un punto del testo"
+        data-i18n-title="progress.sliderTitle"
       >
         <div class="progress-bar-fill" id="progress-fill"></div>
       </div>
-      <div class="progress-counter" id="progress-counter" aria-live="polite" aria-atomic="true">
-        Paragrafo — / —
+      <div class="progress-counter" id="progress-counter" aria-live="polite" aria-atomic="true"
+           data-i18n="progress.counterEmpty">
+        Paragrafo &mdash; / &mdash;
       </div>
     </div>
 
     <!-- Bottoni player -->
-    <div class="player-controls" role="group" aria-label="Controlli riproduzione">
+    <div class="player-controls" role="group" data-i18n-aria-label="player.controlsAria">
 
       <!-- Inizio -->
       <button
         class="player-btn"
         id="btn-start"
-        aria-label="Torna all'inizio"
-        title="Vai al primo paragrafo"
+        data-i18n-aria-label="player.startAria"
+        data-i18n-title="player.startTitle"
         disabled
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -181,8 +188,8 @@
       <button
         class="player-btn"
         id="btn-prev"
-        aria-label="Paragrafo precedente"
-        title="Paragrafo precedente (freccia sinistra)"
+        data-i18n-aria-label="player.prevAria"
+        data-i18n-title="player.prevTitle"
         disabled
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -195,8 +202,8 @@
       <button
         class="player-btn player-btn--play"
         id="btn-play"
-        aria-label="Riproduci"
-        title="Riproduci / Pausa (Spazio)"
+        data-i18n-aria-label="player.playAria"
+        data-i18n-title="player.playTitle"
         disabled
       >
         <!-- Icona Play -->
@@ -216,8 +223,8 @@
       <button
         class="player-btn"
         id="btn-stop"
-        aria-label="Stop"
-        title="Stop e torna al primo paragrafo"
+        data-i18n-aria-label="player.stopAria"
+        data-i18n-title="player.stopTitle"
         disabled
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -229,8 +236,8 @@
       <button
         class="player-btn"
         id="btn-next"
-        aria-label="Paragrafo successivo"
-        title="Paragrafo successivo (freccia destra)"
+        data-i18n-aria-label="player.nextAria"
+        data-i18n-title="player.nextTitle"
         disabled
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -243,8 +250,8 @@
       <button
         class="player-btn"
         id="btn-repeat"
-        aria-label="Ripeti paragrafo"
-        title="Ripeti paragrafo corrente (R)"
+        data-i18n-aria-label="player.repeatAria"
+        data-i18n-title="player.repeatTitle"
         disabled
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
@@ -261,20 +268,20 @@
 
     <!-- Etichette -->
     <div class="controls-labels" aria-hidden="true">
-      <span class="ctrl-label">Inizio</span>
-      <span class="ctrl-label">Prec.</span>
-      <span class="ctrl-label ctrl-label--play">Play / Pausa</span>
-      <span class="ctrl-label">Stop</span>
-      <span class="ctrl-label">Succ.</span>
-      <span class="ctrl-label">Ripeti</span>
+      <span class="ctrl-label" data-i18n="label.start">Inizio</span>
+      <span class="ctrl-label" data-i18n="label.prev">Prec.</span>
+      <span class="ctrl-label ctrl-label--play" data-i18n="label.playPause">Play / Pausa</span>
+      <span class="ctrl-label" data-i18n="label.stop">Stop</span>
+      <span class="ctrl-label" data-i18n="label.next">Succ.</span>
+      <span class="ctrl-label" data-i18n="label.repeat">Ripeti</span>
     </div>
 
     <!-- Keyboard hint -->
-    <p class="keyboard-hint" aria-label="Scorciatoie da tastiera disponibili">
-      <kbd class="kbd">Spazio</kbd> Play/Pausa &nbsp;
-      <kbd class="kbd">&larr;</kbd> Precedente &nbsp;
-      <kbd class="kbd">&rarr;</kbd> Successivo &nbsp;
-      <kbd class="kbd">R</kbd> Ripeti
+    <p class="keyboard-hint" data-i18n-aria-label="kbd.aria">
+      <kbd class="kbd" data-i18n="kbd.space">Spazio</kbd> <span data-i18n="kbd.playPause">Play/Pausa</span> &nbsp;
+      <kbd class="kbd">&larr;</kbd> <span data-i18n="kbd.prev">Precedente</span> &nbsp;
+      <kbd class="kbd">&rarr;</kbd> <span data-i18n="kbd.next">Successivo</span> &nbsp;
+      <kbd class="kbd">R</kbd> <span data-i18n="kbd.repeat">Ripeti</span>
     </p>
 
   </footer>
@@ -282,6 +289,7 @@
   <!-- ============================================================
        JAVASCRIPT
   ============================================================ -->
+  <script src="{{ url_for('static', filename='i18n.js') }}"></script>
   <script src="{{ url_for('static', filename='player.js') }}"></script>
 
 </body>

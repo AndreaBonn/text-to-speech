@@ -40,26 +40,18 @@ DEFAULT_VOICE = "giuseppe"
 
 READING_STYLES = {
     "neutro": {
-        "label": "Neutro",
-        "description": "Lettura standard, bilanciata",
         "rate": "+0%",
         "pitch": "+0Hz",
     },
     "notiziario": {
-        "label": "Notiziario",
-        "description": "Ritmo sostenuto e tono energico, come uno speaker",
         "rate": "+13%",
         "pitch": "+5Hz",
     },
     "audiolibro": {
-        "label": "Audiolibro",
-        "description": "Ritmo rilassato e tono caldo, come un narratore",
         "rate": "-8%",
         "pitch": "-3Hz",
     },
     "lento": {
-        "label": "Lento",
-        "description": "Ritmo molto lento, per studio o comprensione",
         "rate": "-20%",
         "pitch": "+0Hz",
     },
