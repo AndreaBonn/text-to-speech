@@ -24,7 +24,6 @@ from config import (
     EDGE_VOICES,
     FILE_STYLE_DEFAULTS,
     PIPER_VOICES,
-    READING_STYLES,
 )
 from converters import SUPPORTED_EXTENSIONS
 from translations import get_lang, get_styles_meta, tr
