@@ -65,9 +65,9 @@ class TestVoiceConstants:
         # Assert
         for name, info in EDGE_VOICES.items():
             edge_id = info["edge_id"]
-            assert edge_id.endswith(
-                "Neural"
-            ), f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
+            assert edge_id.endswith("Neural"), (
+                f"Voce '{name}' ha ID '{edge_id}' che non finisce con 'Neural'"
+            )
             assert info["gender"] in (
                 "M",
                 "F",

@@ -142,9 +142,9 @@ class TestVoicesEndpoint:
         # Ogni voce deve avere i campi obbligatori
         campi_obbligatori = {"id", "label", "type", "multilingual", "gender", "lang"}
         for voce in data["voices"]:
-            assert (
-                campi_obbligatori <= voce.keys()
-            ), f"Voce {voce.get('id')} mancante di campi: {campi_obbligatori - voce.keys()}"
+            assert campi_obbligatori <= voce.keys(), (
+                f"Voce {voce.get('id')} mancante di campi: {campi_obbligatori - voce.keys()}"
+            )
 
         # Verifica che la voce di default esista nella lista
         ids_disponibili = {v["id"] for v in data["voices"]}
