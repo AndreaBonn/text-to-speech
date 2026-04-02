@@ -32,22 +32,22 @@ import wave
 from pathlib import Path
 
 from config import (
-    DATA_OUTPUT,
-    EDGE_VOICES,
-    PIPER_VOICES,
-    PLATFORM,
-    VOICE_MODEL,
-    VOICE_JSON,
     ALL_VOICES,
+    DATA_OUTPUT,
     DEFAULT_VOICE,
+    EDGE_VOICES,
     GREEN,
     NC,
-    info,
+    PIPER_VOICES,
+    PLATFORM,
+    VOICE_JSON,
+    VOICE_MODEL,
     error,
+    info,
     suggerisci_installazione,
     verifica_prerequisiti,
 )
-from synthesis import scarica_voce_piper, sintetizza_piper, sintetizza_edge
+from synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
 
 # ─── Utilità audio ───────────────────────────────────────────────────────────
 
@@ -168,7 +168,7 @@ def riproduci_audio(audio_bytes: bytes, formato: str):
             tmp.write(audio_bytes)
             tmp_path = tmp.name
         try:
-            subprocess.run(cmd + [tmp_path], check=False, timeout=60)
+            subprocess.run([*cmd, tmp_path], check=False, timeout=60)
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
@@ -185,9 +185,8 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
 
     riproduce = _ha_player("wav")
     if not riproduce and salva_path is None:
-        error(
-            f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {suggerisci_installazione('ffmpeg')}"
-        )
+        installa = suggerisci_installazione("ffmpeg")
+        error(f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {installa}")
         sys.exit(1)
 
     if salva_path and not shutil.which("ffmpeg"):
@@ -253,9 +252,8 @@ def leggi_con_edge(
     voice_id = EDGE_VOICES[voice_name]
     riproduce = _ha_player("mp3")
     if not riproduce and salva_path is None:
-        error(
-            f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {suggerisci_installazione('ffmpeg')}"
-        )
+        installa = suggerisci_installazione("ffmpeg")
+        error(f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {installa}")
         sys.exit(1)
 
     paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
@@ -376,7 +374,7 @@ def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
 
 
 def main():
-    from converters import file_a_testo, SUPPORTED_EXTENSIONS
+    from converters import SUPPORTED_EXTENSIONS, file_a_testo
 
     ext_list = ", ".join(sorted(SUPPORTED_EXTENSIONS))
     parser = argparse.ArgumentParser(

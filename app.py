@@ -11,23 +11,22 @@ import logging
 import os
 import re
 import tempfile
-from pathlib import PurePosixPath, Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
-from flask import Flask, jsonify, render_template, request, Response
+from flask import Flask, Response, jsonify, render_template, request
 
-from converters import SUPPORTED_EXTENSIONS
 from config import (
-    EDGE_VOICES,
-    PIPER_VOICES,
-    ALL_VOICES,
-    DEFAULT_VOICE,
-    READING_STYLES,
     ALL_STYLES,
+    ALL_VOICES,
     DEFAULT_STYLE,
+    DEFAULT_VOICE,
+    EDGE_VOICES,
     FILE_STYLE_DEFAULTS,
+    PIPER_VOICES,
+    READING_STYLES,
 )
-
+from converters import SUPPORTED_EXTENSIONS
 from tts_engine import TTSEngine
 
 app = Flask(__name__)
@@ -201,7 +200,7 @@ def api_save():
         mimetype="audio/mpeg",
         headers={
             "Content-Disposition": (
-                f'attachment; filename="{safe_name}"; ' f"filename*=UTF-8''{encoded_name}"
+                f"attachment; filename=\"{safe_name}\"; filename*=UTF-8''{encoded_name}"
             )
         },
     )

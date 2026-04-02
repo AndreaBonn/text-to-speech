@@ -12,9 +12,9 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from config import DEFAULT_STYLE, EDGE_VOICES, READING_STYLES, VOICE_JSON, VOICE_MODEL
 from converters import file_a_testo
-from config import EDGE_VOICES, PIPER_VOICES, VOICE_MODEL, VOICE_JSON, READING_STYLES, DEFAULT_STYLE
-from synthesis import sintetizza_edge, sintetizza_piper, scarica_voce_piper
+from synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
 
 log = logging.getLogger(__name__)
 

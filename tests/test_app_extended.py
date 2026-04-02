@@ -7,7 +7,7 @@ Complementa test_app.py (che copre validazione input e error cases).
 """
 
 import io
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -258,7 +258,7 @@ class TestPrefetchEndpoint:
         """Senza parametro voice, deve usare la voce di default."""
         # Arrange
         import app as flask_app
-        from config import DEFAULT_VOICE, DEFAULT_STYLE
+        from config import DEFAULT_STYLE, DEFAULT_VOICE
 
         with patch.object(flask_app.engine, "prefetch") as mock_pf:
             # Act

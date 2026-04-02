@@ -1,0 +1,25 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "S",     # flake8-bandit (security)
+    "UP",    # pyupgrade
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific rules
+]
+ignore = [
+    "S603",  # subprocess-without-shell-check (legittimo per ffmpeg/aplay)
+    "S607",  # start-process-with-partial-path (comandi di sistema noti)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101"]  # assert consentito nei test
+
+[lint.isort]
+known-first-party = ["app", "config", "converters", "leggi", "synthesis", "tts_engine"]

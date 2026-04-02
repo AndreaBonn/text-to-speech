@@ -85,8 +85,16 @@ PLATFORM = sys.platform  # "linux", "darwin", "win32"
 
 _INSTALL_COMMANDS = {
     "linux": {
-        "ffmpeg": "sudo apt install ffmpeg  (Debian/Ubuntu)\n         sudo dnf install ffmpeg  (Fedora)\n         sudo pacman -S ffmpeg    (Arch)",
-        "alsa-utils": "sudo apt install alsa-utils  (Debian/Ubuntu)\n              sudo dnf install alsa-utils  (Fedora)\n              sudo pacman -S alsa-utils    (Arch)",
+        "ffmpeg": (
+            "sudo apt install ffmpeg  (Debian/Ubuntu)\n"
+            "         sudo dnf install ffmpeg  (Fedora)\n"
+            "         sudo pacman -S ffmpeg    (Arch)"
+        ),
+        "alsa-utils": (
+            "sudo apt install alsa-utils  (Debian/Ubuntu)\n"
+            "              sudo dnf install alsa-utils  (Fedora)\n"
+            "              sudo pacman -S alsa-utils    (Arch)"
+        ),
     },
     "darwin": {
         "ffmpeg": "brew install ffmpeg",

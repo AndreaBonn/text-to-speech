@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -142,9 +142,9 @@ class TestVoicesEndpoint:
         # Ogni voce deve avere i campi obbligatori
         campi_obbligatori = {"id", "label", "type", "multilingual", "gender"}
         for voce in data["voices"]:
-            assert campi_obbligatori <= voce.keys(), (
-                f"Voce {voce.get('id')} mancante di campi: " f"{campi_obbligatori - voce.keys()}"
-            )
+            assert (
+                campi_obbligatori <= voce.keys()
+            ), f"Voce {voce.get('id')} mancante di campi: {campi_obbligatori - voce.keys()}"
 
         # Verifica che la voce di default esista nella lista
         ids_disponibili = {v["id"] for v in data["voices"]}
@@ -388,9 +388,11 @@ class TestSynthesize:
         fake_wav = b"RIFF\x00\x00fake_wav"
         fake_mp3 = b"ID3\x00fake_piper_mp3"
 
-        with patch.object(engine, "_load_piper") as mock_load, patch(
-            "tts_engine.sintetizza_piper", return_value=fake_wav
-        ), patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3):
+        with (
+            patch.object(engine, "_load_piper") as mock_load,
+            patch("tts_engine.sintetizza_piper", return_value=fake_wav),
+            patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
+        ):
             # Act
             result = engine._synthesize(0, "paola")
 
@@ -437,9 +439,10 @@ class TestPrefetchLogging:
         # Arrange
         engine.load_text("Paragrafo test.", "test.md")
 
-        with patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")), patch(
-            "tts_engine.log"
-        ) as mock_log:
+        with (
+            patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")),
+            patch("tts_engine.log") as mock_log,
+        ):
             # Act
             engine.prefetch(0, "giuseppe")
             # Attendi che il thread pool esegua il task

@@ -5,13 +5,12 @@ Test per il modulo converters.py: dispatcher e convertitori di formato.
 Ogni convertitore è testato con file reali creati in tmp_path.
 """
 
-import zipfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
-from converters import file_a_testo, SUPPORTED_EXTENSIONS
+from converters import SUPPORTED_EXTENSIONS, file_a_testo
 
 # ===========================================================================
 # Test — Dispatcher file_a_testo
@@ -35,7 +34,7 @@ class TestFileATesto:
         """SUPPORTED_EXTENSIONS deve contenere tutti i formati dichiarati."""
         # Assert
         attesi = {".md", ".txt", ".epub", ".docx", ".html", ".htm", ".pdf"}
-        assert SUPPORTED_EXTENSIONS == attesi
+        assert attesi == SUPPORTED_EXTENSIONS
 
     def test_dispatcher_case_insensitive(self, tmp_path):
         """L'estensione deve essere case-insensitive."""
@@ -365,7 +364,7 @@ class TestConvertiPdf:
         # Assert
         assert "Testo del documento." in risultato
         # Il numero "1" isolato deve essere rimosso
-        lines = [l.strip() for l in risultato.split("\n") if l.strip()]
+        lines = [line.strip() for line in risultato.split("\n") if line.strip()]
         assert "1" not in lines
 
 
@@ -398,7 +397,7 @@ class TestConvertiEpub:
             items.append(ch)
 
         book.toc = items
-        book.spine = ["nav"] + items
+        book.spine = ["nav", *items]
         book.add_item(epub.EpubNcx())
         book.add_item(epub.EpubNav())
 

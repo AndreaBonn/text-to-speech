@@ -10,9 +10,7 @@ import io
 import tempfile
 import wave
 from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # ===========================================================================
 # Test — Costanti e configurazione voci
@@ -37,7 +35,7 @@ class TestVoiceConstants:
         from config import ALL_VOICES
 
         # Assert
-        assert ALL_VOICES == sorted(ALL_VOICES)
+        assert sorted(ALL_VOICES) == ALL_VOICES
 
     def test_all_voices_no_duplicates(self):
         """ALL_VOICES non deve avere duplicati."""
@@ -75,7 +73,7 @@ class TestVoiceConstants:
 
     def test_voice_urls_point_to_existing_files(self):
         """VOICE_URLS deve avere entry per modello e config JSON."""
-        from config import VOICE_URLS, VOICE_MODEL, VOICE_JSON
+        from config import VOICE_JSON, VOICE_MODEL, VOICE_URLS
 
         # Assert
         assert VOICE_MODEL in VOICE_URLS
@@ -265,9 +263,10 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 0
             mock_result.stdout = "Titolo\n\nTesto semplice."
 
-            with patch("converters.shutil.which", return_value="/usr/bin/pandoc"), patch(
-                "converters.subprocess.run", return_value=mock_result
-            ) as mock_run:
+            with (
+                patch("converters.shutil.which", return_value="/usr/bin/pandoc"),
+                patch("converters.subprocess.run", return_value=mock_result) as mock_run,
+            ):
                 # Act
                 risultato = file_a_testo(tmp_path)
 
@@ -293,8 +292,9 @@ class TestMarkdownATestoConPandoc:
             mock_result.returncode = 1  # pandoc fallisce
             mock_result.stdout = ""
 
-            with patch("converters.shutil.which", return_value="/usr/bin/pandoc"), patch(
-                "converters.subprocess.run", return_value=mock_result
+            with (
+                patch("converters.shutil.which", return_value="/usr/bin/pandoc"),
+                patch("converters.subprocess.run", return_value=mock_result),
             ):
                 # Act
                 risultato = file_a_testo(tmp_path)
@@ -404,12 +404,15 @@ class TestScaricaVocePiper:
         mock_path_json.exists.return_value = True
         mock_path_json.name = "model.onnx.json"
 
-        with patch("synthesis.VOICE_DIR") as mock_dir, patch(
-            "synthesis.VOICE_URLS",
-            {
-                mock_path_model: "http://example.com/model",
-                mock_path_json: "http://example.com/model.json",
-            },
+        with (
+            patch("synthesis.VOICE_DIR") as mock_dir,
+            patch(
+                "synthesis.VOICE_URLS",
+                {
+                    mock_path_model: "http://example.com/model",
+                    mock_path_json: "http://example.com/model.json",
+                },
+            ),
         ):
             # Act
             scarica_voce_piper()
@@ -431,8 +434,9 @@ class TestTrovaPlayer:
         from leggi import _trova_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "linux"), patch(
-            "leggi.shutil.which", return_value="/usr/bin/aplay"
+        with (
+            patch("leggi.PLATFORM", "linux"),
+            patch("leggi.shutil.which", return_value="/usr/bin/aplay"),
         ):
             cmd, stdin = _trova_player("wav")
 
@@ -445,8 +449,9 @@ class TestTrovaPlayer:
         from leggi import _trova_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "linux"), patch(
-            "leggi.shutil.which", return_value="/usr/bin/ffplay"
+        with (
+            patch("leggi.PLATFORM", "linux"),
+            patch("leggi.shutil.which", return_value="/usr/bin/ffplay"),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -459,8 +464,9 @@ class TestTrovaPlayer:
         from leggi import _trova_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "darwin"), patch(
-            "leggi.shutil.which", return_value="/usr/bin/afplay"
+        with (
+            patch("leggi.PLATFORM", "darwin"),
+            patch("leggi.shutil.which", return_value="/usr/bin/afplay"),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -477,8 +483,9 @@ class TestTrovaPlayer:
             return "/usr/bin/ffplay" if name == "ffplay" else None
 
         # Act
-        with patch("leggi.PLATFORM", "darwin"), patch(
-            "leggi.shutil.which", side_effect=which_side_effect
+        with (
+            patch("leggi.PLATFORM", "darwin"),
+            patch("leggi.shutil.which", side_effect=which_side_effect),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -491,8 +498,9 @@ class TestTrovaPlayer:
         from leggi import _trova_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "win32"), patch(
-            "leggi.shutil.which", return_value="C:\\ffplay.exe"
+        with (
+            patch("leggi.PLATFORM", "win32"),
+            patch("leggi.shutil.which", return_value="C:\\ffplay.exe"),
         ):
             cmd, stdin = _trova_player("wav")
 
@@ -521,8 +529,9 @@ class TestHaPlayer:
         from leggi import _ha_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "linux"), patch(
-            "leggi.shutil.which", return_value="/usr/bin/aplay"
+        with (
+            patch("leggi.PLATFORM", "linux"),
+            patch("leggi.shutil.which", return_value="/usr/bin/aplay"),
         ):
             risultato = _ha_player("wav")
 
@@ -602,8 +611,9 @@ class TestVerificaPrerequisiti:
         from config import verifica_prerequisiti
 
         # Arrange & Act
-        with patch("config.PLATFORM", "linux"), patch(
-            "config.shutil.which", return_value="/usr/bin/found"
+        with (
+            patch("config.PLATFORM", "linux"),
+            patch("config.shutil.which", return_value="/usr/bin/found"),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 
@@ -619,8 +629,9 @@ class TestVerificaPrerequisiti:
             return None if name == "ffmpeg" else "/usr/bin/found"
 
         # Act
-        with patch("config.PLATFORM", "linux"), patch(
-            "config.shutil.which", side_effect=which_side_effect
+        with (
+            patch("config.PLATFORM", "linux"),
+            patch("config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 
@@ -640,8 +651,9 @@ class TestVerificaPrerequisiti:
             return None  # nessun player audio
 
         # Act
-        with patch("config.PLATFORM", "linux"), patch(
-            "config.shutil.which", side_effect=which_side_effect
+        with (
+            patch("config.PLATFORM", "linux"),
+            patch("config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="web")
 
@@ -659,8 +671,9 @@ class TestVerificaPrerequisiti:
             return "/usr/bin/found"
 
         # Act
-        with patch("config.PLATFORM", "linux"), patch(
-            "config.shutil.which", side_effect=which_side_effect
+        with (
+            patch("config.PLATFORM", "linux"),
+            patch("config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 

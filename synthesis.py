@@ -9,14 +9,13 @@ Non deve mai chiamare sys.exit() — gli errori sono segnalati tramite eccezioni
 import io
 import urllib.request
 import wave
-from pathlib import Path
 
 from config import (
     VOICE_DIR,
     VOICE_URLS,
+    error,
     info,
     warn,
-    error,
 )
 
 
@@ -35,7 +34,7 @@ def scarica_voce_piper():
             continue
         warn(f"Scarico {dest.name} ...")
         try:
-            with urllib.request.urlopen(url) as response, open(dest, "wb") as f:
+            with urllib.request.urlopen(url) as response, open(dest, "wb") as f:  # noqa: S310
                 total = int(response.headers.get("Content-Length", 0))
                 scaricati = 0
                 while True:
@@ -45,7 +44,7 @@ def scarica_voce_piper():
                     f.write(chunk)
                     scaricati += len(chunk)
                     if total:
-                        print(f"\r  {scaricati/total*100:.1f}%", end="", flush=True)
+                        print(f"\r  {scaricati / total * 100:.1f}%", end="", flush=True)
             print()
             info(f"{dest.name} scaricato.")
         except Exception as e:
