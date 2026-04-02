@@ -350,15 +350,18 @@ class TestTTSEnginePrefetch:
         # Arrange
         fake_mp3 = b"prefetched_mp3"
 
-        with patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3):
+        with (
+            patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3),
+            patch("tts_engine._executor") as mock_exec,
+        ):
+            # Esegui il task sincrono (elimina race condition da CI)
+            mock_exec.submit.side_effect = lambda fn: fn()
             # Act
             engine_con_testo.prefetch(0, "giuseppe")
-            # Attendi il completamento del thread (mock deve restare attivo)
-            time.sleep(0.5)
 
-            # Assert
-            assert "giuseppe:neutro:0" in engine_con_testo._cache
-            assert engine_con_testo._cache["giuseppe:neutro:0"] == fake_mp3
+        # Assert
+        assert "giuseppe:neutro:0" in engine_con_testo._cache
+        assert engine_con_testo._cache["giuseppe:neutro:0"] == fake_mp3
 
 
 # ===========================================================================
