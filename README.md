@@ -12,8 +12,11 @@ and correctly pronounces English terms within Italian text.
 ## Features
 
 - Read text files aloud (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragraph by paragraph
-- 5 Italian voices: 4 online (Edge TTS) + 1 offline (Piper TTS)
+- 8 voices: 7 online (Edge TTS) + 1 offline (Piper TTS)
+- Italian and English voices with multilingual support
+- 4 reading styles: Neutral, Newscast, Audiobook, Slow (Edge TTS only)
 - Web interface with audio player (play, pause, stop, previous, next, repeat)
+- Bilingual UI: Italian and English with language switcher
 - CLI for terminal usage
 - Save audio as MP3 (single file + individual paragraphs)
 - Smart prefetch: synthesizes the next paragraph during playback
@@ -105,11 +108,18 @@ Open **http://localhost:5000** in your browser. The interface allows you to:
 
 - Upload a file from disk (MD, TXT, EPUB, DOCX, HTML, PDF)
 - Choose a voice from the dropdown menu
+- Select a reading style (Neutral, Newscast, Audiobook, Slow)
+- Switch between Italian and English UI using the language buttons (IT/EN)
 - Use player controls: play/pause, stop, previous, next, repeat
 - Click the progress bar to jump to any paragraph
 - Download the complete audio as MP3
 
 Keyboard shortcuts: `Space` play/pause, `Left/Right arrow` prev/next, `R` repeat.
+
+The reading style is automatically suggested based on file format:
+- EPUB files → Audiobook style (relaxed pace)
+- Markdown/HTML → Newscast style (faster pace)
+- Other formats → Neutral style
 
 ### Command Line
 
@@ -122,12 +132,19 @@ python leggi.py file.md
 # Choose a voice
 python leggi.py file.md --voice isabella
 
+# English voices
+python leggi.py document.md --voice andrew
+python leggi.py document.md --voice ava
+
 # Offline voice (no internet required)
 python leggi.py file.md --voice paola
 
 # Save as MP3
 python leggi.py file.md --voice giuseppe --salva
 ```
+
+**Note:** Reading styles are only available in the web interface. The CLI uses
+the default neutral style for all voices.
 
 With `--salva`, the following structure is created:
 ```
@@ -141,17 +158,33 @@ data/output/<filename>/
 
 ## Available Voices
 
-| Voice | Engine | Gender | Multilingual | Requires Internet |
-|-------|--------|--------|--------------|-------------------|
-| giuseppe | Edge TTS | Male | Yes (IT/EN) | Yes |
-| isabella | Edge TTS | Female | No | Yes |
-| elsa | Edge TTS | Female | No | Yes |
-| diego | Edge TTS | Male | No | Yes |
-| paola | Piper TTS | Female | No | No (offline) |
+| Voice | Engine | Gender | Language | Multilingual | Requires Internet |
+|-------|--------|--------|----------|--------------|-------------------|
+| giuseppe | Edge TTS | Male | Italian | Yes (IT/EN) | Yes |
+| isabella | Edge TTS | Female | Italian | No | Yes |
+| elsa | Edge TTS | Female | Italian | No | Yes |
+| diego | Edge TTS | Male | Italian | No | Yes |
+| andrew | Edge TTS | Male | English | Yes (EN/IT) | Yes |
+| ava | Edge TTS | Female | English | Yes (EN/IT) | Yes |
+| ryan | Edge TTS | Male | English | No | Yes |
+| paola | Piper TTS | Female | Italian | No | No (offline) |
 
 **Giuseppe** is recommended for technical texts with English terms.
 **Paola** works without an internet connection (the model is automatically
 downloaded on first use, approximately 60 MB).
+
+## Reading Styles
+
+The web interface offers 4 reading styles (Edge TTS voices only):
+
+| Style | Speed | Pitch | Best For |
+|-------|-------|-------|----------|
+| Neutral | Normal | Normal | General reading |
+| Newscast | +13% | +5Hz | News, articles, fast-paced content |
+| Audiobook | -8% | -3Hz | Books, relaxed listening |
+| Slow | -20% | Normal | Study, comprehension, language learning |
+
+The style is automatically suggested based on file format (e.g., EPUB → Audiobook, MD → Newscast).
 
 ## Security
 
@@ -166,11 +199,13 @@ text-to-speech/
 ├── tts_engine.py       # TTS engine with cache and prefetch
 ├── synthesis.py        # Speech synthesis functions (Piper, Edge)
 ├── config.py           # Voice configuration, model paths, constants
+├── translations.py     # Backend translations (API messages, styles)
 ├── leggi.py            # CLI: terminal reading
 ├── converters.py       # Format converters → plain text
 ├── static/
 │   ├── style.css       # Design system (Ink & Amber)
-│   └── player.js       # JavaScript audio player
+│   ├── player.js       # JavaScript audio player
+│   └── i18n.js         # Frontend i18n system (IT/EN)
 ├── templates/
 │   └── index.html      # Web interface (HTML only)
 ├── tests/
@@ -193,9 +228,9 @@ This project is released under the **GPL-3.0** license. See the
 
 ## Disclaimers
 
-Edge TTS voices (giuseppe, isabella, elsa, diego) use an unofficial
-Microsoft Edge "Read Aloud" API. This service is not guaranteed and may
-stop working at any time. It is not authorized for commercial use.
+Edge TTS voices (giuseppe, isabella, elsa, diego, andrew, ava, ryan) use an
+unofficial Microsoft Edge "Read Aloud" API. This service is not guaranteed and
+may stop working at any time. It is not authorized for commercial use.
 For commercial applications, consider
 [Azure AI Speech](https://azure.microsoft.com/en-us/products/ai-services/text-to-speech).
 

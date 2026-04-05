@@ -12,8 +12,11 @@ e pronuncia correttamente anche i termini inglesi nel testo italiano.
 ## Funzionalità
 
 - Lettura ad alta voce di file di testo (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragrafo per paragrafo
-- 5 voci italiane: 4 online (Edge TTS) + 1 offline (Piper TTS)
+- 8 voci: 7 online (Edge TTS) + 1 offline (Piper TTS)
+- Voci italiane e inglesi con supporto multilingue
+- 4 stili di lettura: Neutro, Notiziario, Audiolibro, Lento (solo Edge TTS)
 - Interfaccia web con player audio (play, pausa, stop, precedente, successivo, ripeti)
+- UI bilingue: italiano e inglese con selettore lingua
 - Interfaccia CLI per uso da terminale
 - Salvataggio audio in MP3 (file unico + singoli paragrafi)
 - Prefetch intelligente: sintetizza il paragrafo successivo durante la riproduzione
@@ -105,11 +108,18 @@ Apri **http://localhost:5000** nel browser. L'interfaccia permette di:
 
 - Caricare un file dal disco (MD, TXT, EPUB, DOCX, HTML, PDF)
 - Scegliere la voce dal menu a tendina
+- Selezionare lo stile di lettura (Neutro, Notiziario, Audiolibro, Lento)
+- Cambiare lingua dell'interfaccia con i pulsanti IT/EN
 - Usare i controlli player: play/pausa, stop, precedente, successivo, ripeti
 - Cliccare sulla barra di progresso per saltare a qualsiasi paragrafo
 - Scaricare l'audio completo in MP3
 
 Scorciatoie tastiera: `Spazio` play/pausa, `freccia sinistra/destra` prev/next, `R` ripeti.
+
+Lo stile di lettura viene suggerito automaticamente in base al formato del file:
+- File EPUB → stile Audiolibro (ritmo rilassato)
+- Markdown/HTML → stile Notiziario (ritmo sostenuto)
+- Altri formati → stile Neutro
 
 ### Linea di comando
 
@@ -122,12 +132,19 @@ python leggi.py file.md
 # Scelta voce
 python leggi.py file.md --voice isabella
 
+# Voci inglesi
+python leggi.py documento.md --voice andrew
+python leggi.py documento.md --voice ava
+
 # Voce offline (non serve internet)
 python leggi.py file.md --voice paola
 
 # Salvataggio in MP3
 python leggi.py file.md --voice giuseppe --salva
 ```
+
+**Nota:** Gli stili di lettura sono disponibili solo nell'interfaccia web. La CLI
+usa lo stile neutro predefinito per tutte le voci.
 
 Con `--salva` viene creata la struttura:
 ```
@@ -141,17 +158,33 @@ data/output/<nome_file>/
 
 ## Voci disponibili
 
-| Voce | Motore | Genere | Multilingue | Richiede internet |
-|------|--------|--------|-------------|-------------------|
-| giuseppe | Edge TTS | Maschile | Si (IT/EN) | Si |
-| isabella | Edge TTS | Femminile | No | Si |
-| elsa | Edge TTS | Femminile | No | Si |
-| diego | Edge TTS | Maschile | No | Si |
-| paola | Piper TTS | Femminile | No | No (offline) |
+| Voce | Motore | Genere | Lingua | Multilingue | Richiede internet |
+|------|--------|--------|--------|-------------|-------------------|
+| giuseppe | Edge TTS | Maschile | Italiano | Si (IT/EN) | Si |
+| isabella | Edge TTS | Femminile | Italiano | No | Si |
+| elsa | Edge TTS | Femminile | Italiano | No | Si |
+| diego | Edge TTS | Maschile | Italiano | No | Si |
+| andrew | Edge TTS | Maschile | Inglese | Si (EN/IT) | Si |
+| ava | Edge TTS | Femminile | Inglese | Si (EN/IT) | Si |
+| ryan | Edge TTS | Maschile | Inglese | No | Si |
+| paola | Piper TTS | Femminile | Italiano | No | No (offline) |
 
 La voce **Giuseppe** è consigliata per testi tecnici con termini inglesi.
 La voce **Paola** funziona senza connessione internet (il modello viene
 scaricato automaticamente al primo utilizzo, circa 60 MB).
+
+## Stili di lettura
+
+L'interfaccia web offre 4 stili di lettura (solo voci Edge TTS):
+
+| Stile | Velocità | Tono | Ideale per |
+|-------|----------|------|------------|
+| Neutro | Normale | Normale | Lettura generale |
+| Notiziario | +13% | +5Hz | Notizie, articoli, contenuti dinamici |
+| Audiolibro | -8% | -3Hz | Libri, ascolto rilassato |
+| Lento | -20% | Normale | Studio, comprensione, apprendimento lingue |
+
+Lo stile viene suggerito automaticamente in base al formato del file (es. EPUB → Audiolibro, MD → Notiziario).
 
 ## Sicurezza
 
@@ -167,11 +200,13 @@ text-to-speech/
 ├── tts_engine.py       # Motore TTS con cache e prefetch
 ├── synthesis.py        # Funzioni di sintesi vocale (Piper, Edge)
 ├── config.py           # Configurazione voci, path modelli, costanti
+├── translations.py     # Traduzioni backend (messaggi API, stili)
 ├── leggi.py            # CLI: lettura da terminale
 ├── converters.py       # Convertitori formato → testo piano
 ├── static/
 │   ├── style.css       # Design system (Inchiostro e Ambra)
-│   └── player.js       # Player audio JavaScript
+│   ├── player.js       # Player audio JavaScript
+│   └── i18n.js         # Sistema i18n frontend (IT/EN)
 ├── templates/
 │   └── index.html      # Interfaccia web (solo markup HTML)
 ├── tests/
@@ -194,9 +229,9 @@ Questo progetto è rilasciato sotto licenza **GPL-3.0**. Vedi il file
 
 ## Avvertenze
 
-Le voci Edge TTS (giuseppe, isabella, elsa, diego) utilizzano un'API non
-ufficiale di Microsoft Edge "Read Aloud". Questo servizio non è garantito
-e potrebbe cessare di funzionare in qualsiasi momento. Non è autorizzato
+Le voci Edge TTS (giuseppe, isabella, elsa, diego, andrew, ava, ryan) utilizzano
+un'API non ufficiale di Microsoft Edge "Read Aloud". Questo servizio non è
+garantito e potrebbe cessare di funzionare in qualsiasi momento. Non è autorizzato
 per uso commerciale. Per applicazioni commerciali si consiglia
 [Azure AI Speech](https://azure.microsoft.com/it-it/products/ai-services/text-to-speech).
 
