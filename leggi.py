@@ -8,4 +8,5 @@ Il codice reale è in src/leggi.py
 
 if __name__ == "__main__":
     from src.leggi import main
+
     main()
