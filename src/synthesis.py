@@ -10,7 +10,7 @@ import io
 import urllib.request
 import wave
 
-from config import (
+from src.config import (
     VOICE_DIR,
     VOICE_URLS,
     error,

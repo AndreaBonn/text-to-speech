@@ -19,7 +19,7 @@ import pytest
 @pytest.fixture()
 def client_con_testo(client):
     """Flask test client con un documento già caricato nell'engine."""
-    import app as flask_app
+    from src import app as flask_app
 
     flask_app.engine._paragraphs = [
         "Primo paragrafo di test.",
@@ -89,7 +89,7 @@ class TestSanitizeFilename:
     """Test per la funzione di sanitizzazione nomi file."""
 
     def _sanitize(self, name: str) -> str:
-        from app import _sanitize_filename
+        from src.app import _sanitize_filename
 
         return _sanitize_filename(name)
 
@@ -168,7 +168,7 @@ class TestAudioEndpointSuccess:
     def test_audio_restituisce_mp3(self, client_con_testo):
         """GET /api/audio/0 con file caricato deve restituire audio/mpeg."""
         # Arrange
-        import app as flask_app
+        from src import app as flask_app
 
         fake_mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00"
 
@@ -184,8 +184,8 @@ class TestAudioEndpointSuccess:
     def test_audio_con_voce_diversa(self, client_con_testo):
         """GET /api/audio/0?voice=isabella deve usare la voce specificata."""
         # Arrange
-        import app as flask_app
-        from config import DEFAULT_STYLE
+        from src import app as flask_app
+        from src.config import DEFAULT_STYLE
 
         fake_mp3 = b"mp3_isabella"
 
@@ -200,7 +200,7 @@ class TestAudioEndpointSuccess:
     def test_audio_paragrafo_inesistente_404(self, client_con_testo):
         """GET /api/audio/999 deve restituire 404."""
         # Arrange
-        import app as flask_app
+        from src import app as flask_app
 
         with patch.object(flask_app.engine, "get_audio", side_effect=IndexError("out of range")):
             # Act
@@ -212,7 +212,7 @@ class TestAudioEndpointSuccess:
     def test_audio_errore_sintesi_500(self, client_con_testo):
         """Un errore di sintesi deve restituire 500 con messaggio generico."""
         # Arrange
-        import app as flask_app
+        from src import app as flask_app
 
         with patch.object(
             flask_app.engine,
@@ -241,8 +241,8 @@ class TestPrefetchEndpoint:
     def test_prefetch_restituisce_ok(self, client_con_testo):
         """GET /api/prefetch/1 deve restituire status ok."""
         # Arrange
-        import app as flask_app
-        from config import DEFAULT_STYLE
+        from src import app as flask_app
+        from src.config import DEFAULT_STYLE
 
         with patch.object(flask_app.engine, "prefetch") as mock_pf:
             # Act
@@ -257,8 +257,8 @@ class TestPrefetchEndpoint:
     def test_prefetch_usa_voce_default(self, client_con_testo):
         """Senza parametro voice, deve usare la voce di default."""
         # Arrange
-        import app as flask_app
-        from config import DEFAULT_STYLE, DEFAULT_VOICE
+        from src import app as flask_app
+        from src.config import DEFAULT_STYLE, DEFAULT_VOICE
 
         with patch.object(flask_app.engine, "prefetch") as mock_pf:
             # Act
@@ -280,7 +280,7 @@ class TestSaveEndpointSuccess:
     def test_save_restituisce_mp3_con_content_disposition(self, client_con_testo):
         """POST /api/save deve restituire MP3 con header Content-Disposition."""
         # Arrange
-        import app as flask_app
+        from src import app as flask_app
 
         fake_mp3 = b"ID3\x04\x00complete_audio"
 
@@ -366,8 +366,8 @@ class TestVoicesMeta:
 
     def test_voices_meta_contiene_tutte_le_voci(self):
         """VOICES_META deve avere una entry per ogni voce in ALL_VOICES."""
-        from app import VOICES_META
-        from config import ALL_VOICES
+        from src.app import VOICES_META
+        from src.config import ALL_VOICES
 
         # Arrange
         meta_ids = {v["id"] for v in VOICES_META}
@@ -377,7 +377,7 @@ class TestVoicesMeta:
 
     def test_voices_meta_campi_obbligatori(self):
         """Ogni voce deve avere id, label, type, multilingual, gender, lang."""
-        from app import VOICES_META
+        from src.app import VOICES_META
 
         # Assert
         campi = {"id", "label", "type", "multilingual", "gender", "lang"}
@@ -388,7 +388,7 @@ class TestVoicesMeta:
 
     def test_voices_meta_type_validi(self):
         """Il type di ogni voce deve essere 'edge' o 'piper'."""
-        from app import VOICES_META
+        from src.app import VOICES_META
 
         # Assert
         for voce in VOICES_META:
@@ -399,7 +399,7 @@ class TestVoicesMeta:
 
     def test_voices_meta_gender_validi(self):
         """Il gender deve essere 'M' o 'F'."""
-        from app import VOICES_META
+        from src.app import VOICES_META
 
         # Assert
         for voce in VOICES_META:

@@ -25,7 +25,7 @@ class TestMarkdownATesto:
 
     def _converti(self, markdown: str) -> str:
         """Helper: converte Markdown via file temp con fallback regex forzato."""
-        from converters import file_a_testo
+        from src.converters import file_a_testo
 
         with tempfile.NamedTemporaryFile(
             suffix=".md", mode="w", encoding="utf-8", delete=False
@@ -34,7 +34,7 @@ class TestMarkdownATesto:
             tmp_path = Path(f.name)
 
         try:
-            with patch("converters.shutil.which", return_value=None):
+            with patch("src.converters.shutil.which", return_value=None):
                 return file_a_testo(tmp_path)
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -187,7 +187,7 @@ class TestLoadEndpoint:
         mock_paragraphs = ["Primo paragrafo del documento.", "Secondo paragrafo."]
 
         # Act — mock engine.load_file per evitare pandoc/filesystem reali
-        with patch("app.engine.load_file", return_value=mock_paragraphs):
+        with patch("src.app.engine.load_file", return_value=mock_paragraphs):
             response = client.post(
                 "/api/load",
                 data={"file": file_md},
@@ -368,7 +368,7 @@ class TestSynthesize:
         engine.load_text("Testo di test.", "test.md")
         fake_mp3 = b"ID3\x00fake_edge_mp3"
 
-        with patch("tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
+        with patch("src.tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
             mock_future = MagicMock()
             mock_future.result.return_value = fake_mp3
             mock_rcs.return_value = mock_future
@@ -390,8 +390,8 @@ class TestSynthesize:
 
         with (
             patch.object(engine, "_load_piper") as mock_load,
-            patch("tts_engine.sintetizza_piper", return_value=fake_wav),
-            patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
+            patch("src.tts_engine.sintetizza_piper", return_value=fake_wav),
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
         ):
             # Act
             result = engine._synthesize(0, "paola")
@@ -441,7 +441,7 @@ class TestPrefetchLogging:
 
         with (
             patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")),
-            patch("tts_engine.log") as mock_log,
+            patch("src.tts_engine.log") as mock_log,
         ):
             # Act
             engine.prefetch(0, "giuseppe")

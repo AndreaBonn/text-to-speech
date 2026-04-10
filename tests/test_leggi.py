@@ -22,7 +22,7 @@ class TestVoiceConstants:
 
     def test_all_voices_contains_edge_and_piper(self):
         """ALL_VOICES deve contenere tutte le voci Edge + Piper."""
-        from config import ALL_VOICES, EDGE_VOICES, PIPER_VOICES
+        from src.config import ALL_VOICES, EDGE_VOICES, PIPER_VOICES
 
         # Assert
         for voice in EDGE_VOICES:
@@ -32,35 +32,35 @@ class TestVoiceConstants:
 
     def test_all_voices_is_sorted(self):
         """ALL_VOICES deve essere ordinata alfabeticamente."""
-        from config import ALL_VOICES
+        from src.config import ALL_VOICES
 
         # Assert
         assert sorted(ALL_VOICES) == ALL_VOICES
 
     def test_all_voices_no_duplicates(self):
         """ALL_VOICES non deve avere duplicati."""
-        from config import ALL_VOICES
+        from src.config import ALL_VOICES
 
         # Assert
         assert len(ALL_VOICES) == len(set(ALL_VOICES))
 
     def test_default_voice_exists(self):
         """DEFAULT_VOICE deve essere presente in ALL_VOICES."""
-        from config import ALL_VOICES, DEFAULT_VOICE
+        from src.config import ALL_VOICES, DEFAULT_VOICE
 
         # Assert
         assert DEFAULT_VOICE in ALL_VOICES
 
     def test_default_voice_is_edge(self):
         """DEFAULT_VOICE deve essere una voce Edge (richiede internet)."""
-        from config import DEFAULT_VOICE, EDGE_VOICES
+        from src.config import DEFAULT_VOICE, EDGE_VOICES
 
         # Assert — giuseppe è Edge TTS
         assert DEFAULT_VOICE in EDGE_VOICES
 
     def test_edge_voices_have_valid_ids(self):
         """Gli ID delle voci Edge devono seguire il pattern xx-XX-*Neural."""
-        from config import EDGE_VOICES
+        from src.config import EDGE_VOICES
 
         # Assert
         for name, info in EDGE_VOICES.items():
@@ -79,7 +79,7 @@ class TestVoiceConstants:
 
     def test_voice_urls_point_to_existing_files(self):
         """VOICE_URLS deve avere entry per modello e config JSON."""
-        from config import VOICE_JSON, VOICE_MODEL, VOICE_URLS
+        from src.config import VOICE_JSON, VOICE_MODEL, VOICE_URLS
 
         # Assert
         assert VOICE_MODEL in VOICE_URLS
@@ -87,7 +87,7 @@ class TestVoiceConstants:
 
     def test_voice_model_path_uses_home_directory(self):
         """VOICE_DIR deve essere sotto la home directory dell'utente."""
-        from config import VOICE_DIR
+        from src.config import VOICE_DIR
 
         # Assert
         assert str(VOICE_DIR).startswith(str(Path.home()))
@@ -103,7 +103,7 @@ class TestMarkdownATestoEdgeCases:
 
     def _converti(self, markdown: str) -> str:
         """Helper: converte markdown via file temp con fallback regex forzato."""
-        from converters import file_a_testo
+        from src.converters import file_a_testo
 
         with tempfile.NamedTemporaryFile(
             suffix=".md", mode="w", encoding="utf-8", delete=False
@@ -111,7 +111,7 @@ class TestMarkdownATestoEdgeCases:
             f.write(markdown)
             tmp_path = Path(f.name)
         try:
-            with patch("converters.shutil.which", return_value=None):
+            with patch("src.converters.shutil.which", return_value=None):
                 return file_a_testo(tmp_path)
         finally:
             tmp_path.unlink(missing_ok=True)
@@ -255,7 +255,7 @@ class TestMarkdownATestoConPandoc:
 
     def test_usa_pandoc_quando_disponibile(self):
         """Deve usare pandoc se disponibile nel PATH."""
-        from converters import file_a_testo
+        from src.converters import file_a_testo
 
         # Arrange
         with tempfile.NamedTemporaryFile(
@@ -270,8 +270,8 @@ class TestMarkdownATestoConPandoc:
             mock_result.stdout = "Titolo\n\nTesto semplice."
 
             with (
-                patch("converters.shutil.which", return_value="/usr/bin/pandoc"),
-                patch("converters.subprocess.run", return_value=mock_result) as mock_run,
+                patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+                patch("src.converters.subprocess.run", return_value=mock_result) as mock_run,
             ):
                 # Act
                 risultato = file_a_testo(tmp_path)
@@ -284,7 +284,7 @@ class TestMarkdownATestoConPandoc:
 
     def test_fallback_regex_se_pandoc_fallisce(self):
         """Se pandoc restituisce errore, deve cadere sul fallback regex."""
-        from converters import file_a_testo
+        from src.converters import file_a_testo
 
         # Arrange
         with tempfile.NamedTemporaryFile(
@@ -299,8 +299,8 @@ class TestMarkdownATestoConPandoc:
             mock_result.stdout = ""
 
             with (
-                patch("converters.shutil.which", return_value="/usr/bin/pandoc"),
-                patch("converters.subprocess.run", return_value=mock_result),
+                patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+                patch("src.converters.subprocess.run", return_value=mock_result),
             ):
                 # Act
                 risultato = file_a_testo(tmp_path)
@@ -333,7 +333,7 @@ class TestConcatenaWav:
 
     def test_concatena_due_wav(self):
         """Due WAV concatenati devono avere la somma dei frame."""
-        from leggi import concatena_wav
+        from src.leggi import concatena_wav
 
         # Arrange
         sr = 22050
@@ -351,7 +351,7 @@ class TestConcatenaWav:
 
     def test_concatena_lista_vuota(self):
         """Una lista vuota deve produrre un WAV valido con 0 frame."""
-        from leggi import concatena_wav
+        from src.leggi import concatena_wav
 
         # Arrange & Act
         risultato = concatena_wav([], 22050)
@@ -362,7 +362,7 @@ class TestConcatenaWav:
 
     def test_concatena_singolo_wav(self):
         """Un singolo WAV deve restituire un WAV con gli stessi frame."""
-        from leggi import concatena_wav
+        from src.leggi import concatena_wav
 
         # Arrange
         sr = 16000
@@ -386,10 +386,10 @@ class TestScaricaVocePiper:
 
     def test_skip_download_se_file_esistono(self):
         """Non deve scaricare se i file del modello esistono già."""
-        from synthesis import scarica_voce_piper
+        from src.synthesis import scarica_voce_piper
 
         # Arrange & Act
-        with patch("synthesis.VOICE_DIR") as mock_dir, patch("synthesis.VOICE_URLS", {}):
+        with patch("src.synthesis.VOICE_DIR") as mock_dir, patch("src.synthesis.VOICE_URLS", {}):
             mock_dir.mkdir = MagicMock()
             # Nessun URL da scaricare
             scarica_voce_piper()
@@ -399,7 +399,7 @@ class TestScaricaVocePiper:
 
     def test_crea_directory_se_non_esiste(self):
         """Deve creare la directory dei modelli con parents=True."""
-        from synthesis import scarica_voce_piper
+        from src.synthesis import scarica_voce_piper
 
         # Arrange
         mock_path_model = MagicMock()
@@ -411,9 +411,9 @@ class TestScaricaVocePiper:
         mock_path_json.name = "model.onnx.json"
 
         with (
-            patch("synthesis.VOICE_DIR") as mock_dir,
+            patch("src.synthesis.VOICE_DIR") as mock_dir,
             patch(
-                "synthesis.VOICE_URLS",
+                "src.synthesis.VOICE_URLS",
                 {
                     mock_path_model: "http://example.com/model",
                     mock_path_json: "http://example.com/model.json",
@@ -437,12 +437,12 @@ class TestTrovaPlayer:
 
     def test_linux_wav_con_aplay(self):
         """Su Linux con aplay disponibile, deve usare aplay per WAV."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange & Act
         with (
-            patch("leggi.PLATFORM", "linux"),
-            patch("leggi.shutil.which", return_value="/usr/bin/aplay"),
+            patch("src.leggi.PLATFORM", "linux"),
+            patch("src.leggi.shutil.which", return_value="/usr/bin/aplay"),
         ):
             cmd, stdin = _trova_player("wav")
 
@@ -452,12 +452,12 @@ class TestTrovaPlayer:
 
     def test_linux_mp3_con_ffplay(self):
         """Su Linux deve usare ffplay per MP3."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange & Act
         with (
-            patch("leggi.PLATFORM", "linux"),
-            patch("leggi.shutil.which", return_value="/usr/bin/ffplay"),
+            patch("src.leggi.PLATFORM", "linux"),
+            patch("src.leggi.shutil.which", return_value="/usr/bin/ffplay"),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -467,12 +467,12 @@ class TestTrovaPlayer:
 
     def test_darwin_con_afplay(self):
         """Su macOS con afplay disponibile, deve usare afplay."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange & Act
         with (
-            patch("leggi.PLATFORM", "darwin"),
-            patch("leggi.shutil.which", return_value="/usr/bin/afplay"),
+            patch("src.leggi.PLATFORM", "darwin"),
+            patch("src.leggi.shutil.which", return_value="/usr/bin/afplay"),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -482,7 +482,7 @@ class TestTrovaPlayer:
 
     def test_darwin_fallback_ffplay(self):
         """Su macOS senza afplay, deve usare ffplay come fallback."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange
         def which_side_effect(name):
@@ -490,8 +490,8 @@ class TestTrovaPlayer:
 
         # Act
         with (
-            patch("leggi.PLATFORM", "darwin"),
-            patch("leggi.shutil.which", side_effect=which_side_effect),
+            patch("src.leggi.PLATFORM", "darwin"),
+            patch("src.leggi.shutil.which", side_effect=which_side_effect),
         ):
             cmd, stdin = _trova_player("mp3")
 
@@ -501,12 +501,12 @@ class TestTrovaPlayer:
 
     def test_win32_con_ffplay(self):
         """Su Windows con ffplay deve usare ffplay."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange & Act
         with (
-            patch("leggi.PLATFORM", "win32"),
-            patch("leggi.shutil.which", return_value="C:\\ffplay.exe"),
+            patch("src.leggi.PLATFORM", "win32"),
+            patch("src.leggi.shutil.which", return_value="C:\\ffplay.exe"),
         ):
             cmd, stdin = _trova_player("wav")
 
@@ -516,10 +516,10 @@ class TestTrovaPlayer:
 
     def test_nessun_player_disponibile(self):
         """Senza player, deve restituire lista vuota."""
-        from leggi import _trova_player
+        from src.leggi import _trova_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "linux"), patch("leggi.shutil.which", return_value=None):
+        with patch("src.leggi.PLATFORM", "linux"), patch("src.leggi.shutil.which", return_value=None):
             cmd, stdin = _trova_player("wav")
 
         # Assert
@@ -532,12 +532,12 @@ class TestHaPlayer:
 
     def test_ha_player_true(self):
         """Deve restituire True se un player è disponibile."""
-        from leggi import _ha_player
+        from src.leggi import _ha_player
 
         # Arrange & Act
         with (
-            patch("leggi.PLATFORM", "linux"),
-            patch("leggi.shutil.which", return_value="/usr/bin/aplay"),
+            patch("src.leggi.PLATFORM", "linux"),
+            patch("src.leggi.shutil.which", return_value="/usr/bin/aplay"),
         ):
             risultato = _ha_player("wav")
 
@@ -546,10 +546,10 @@ class TestHaPlayer:
 
     def test_ha_player_false(self):
         """Deve restituire False se nessun player è disponibile."""
-        from leggi import _ha_player
+        from src.leggi import _ha_player
 
         # Arrange & Act
-        with patch("leggi.PLATFORM", "win32"), patch("leggi.shutil.which", return_value=None):
+        with patch("src.leggi.PLATFORM", "win32"), patch("src.leggi.shutil.which", return_value=None):
             risultato = _ha_player("mp3")
 
         # Assert
@@ -561,10 +561,10 @@ class TestSuggerisciInstallazione:
 
     def test_linux_ffmpeg(self):
         """Su Linux deve suggerire apt/dnf/pacman per ffmpeg."""
-        from config import suggerisci_installazione
+        from src.config import suggerisci_installazione
 
         # Act
-        with patch("config.PLATFORM", "linux"):
+        with patch("src.config.PLATFORM", "linux"):
             msg = suggerisci_installazione("ffmpeg")
 
         # Assert
@@ -572,10 +572,10 @@ class TestSuggerisciInstallazione:
 
     def test_darwin_ffmpeg(self):
         """Su macOS deve suggerire brew per ffmpeg."""
-        from config import suggerisci_installazione
+        from src.config import suggerisci_installazione
 
         # Act
-        with patch("config.PLATFORM", "darwin"):
+        with patch("src.config.PLATFORM", "darwin"):
             msg = suggerisci_installazione("ffmpeg")
 
         # Assert
@@ -583,10 +583,10 @@ class TestSuggerisciInstallazione:
 
     def test_win32_ffmpeg(self):
         """Su Windows deve suggerire choco/scoop per ffmpeg."""
-        from config import suggerisci_installazione
+        from src.config import suggerisci_installazione
 
         # Act
-        with patch("config.PLATFORM", "win32"):
+        with patch("src.config.PLATFORM", "win32"):
             msg = suggerisci_installazione("ffmpeg")
 
         # Assert
@@ -594,10 +594,10 @@ class TestSuggerisciInstallazione:
 
     def test_pacchetto_sconosciuto(self):
         """Per pacchetti non mappati deve restituire messaggio generico."""
-        from config import suggerisci_installazione
+        from src.config import suggerisci_installazione
 
         # Act
-        with patch("config.PLATFORM", "linux"):
+        with patch("src.config.PLATFORM", "linux"):
             msg = suggerisci_installazione("pacchetto_inesistente")
 
         # Assert
@@ -614,12 +614,12 @@ class TestVerificaPrerequisiti:
 
     def test_tutto_presente_nessun_errore(self):
         """Con tutte le dipendenze presenti, deve restituire lista vuota."""
-        from config import verifica_prerequisiti
+        from src.config import verifica_prerequisiti
 
         # Arrange & Act
         with (
-            patch("config.PLATFORM", "linux"),
-            patch("config.shutil.which", return_value="/usr/bin/found"),
+            patch("src.config.PLATFORM", "linux"),
+            patch("src.config.shutil.which", return_value="/usr/bin/found"),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 
@@ -628,7 +628,7 @@ class TestVerificaPrerequisiti:
 
     def test_ffmpeg_mancante_errore_critico(self):
         """Senza ffmpeg deve restituire errore critico."""
-        from config import verifica_prerequisiti
+        from src.config import verifica_prerequisiti
 
         # Arrange
         def which_side_effect(name):
@@ -636,8 +636,8 @@ class TestVerificaPrerequisiti:
 
         # Act
         with (
-            patch("config.PLATFORM", "linux"),
-            patch("config.shutil.which", side_effect=which_side_effect),
+            patch("src.config.PLATFORM", "linux"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 
@@ -646,7 +646,7 @@ class TestVerificaPrerequisiti:
 
     def test_modalita_web_non_controlla_player(self):
         """In modalità web non deve controllare il player audio."""
-        from config import verifica_prerequisiti
+        from src.config import verifica_prerequisiti
 
         # Arrange
         def which_side_effect(name):
@@ -658,8 +658,8 @@ class TestVerificaPrerequisiti:
 
         # Act
         with (
-            patch("config.PLATFORM", "linux"),
-            patch("config.shutil.which", side_effect=which_side_effect),
+            patch("src.config.PLATFORM", "linux"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="web")
 
@@ -668,7 +668,7 @@ class TestVerificaPrerequisiti:
 
     def test_pandoc_mancante_solo_warning(self, capsys):
         """Pandoc mancante deve generare warning, non errore critico."""
-        from config import verifica_prerequisiti
+        from src.config import verifica_prerequisiti
 
         # Arrange
         def which_side_effect(name):
@@ -678,8 +678,8 @@ class TestVerificaPrerequisiti:
 
         # Act
         with (
-            patch("config.PLATFORM", "linux"),
-            patch("config.shutil.which", side_effect=which_side_effect),
+            patch("src.config.PLATFORM", "linux"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
         ):
             errori = verifica_prerequisiti(modalita="cli")
 
@@ -699,7 +699,7 @@ class TestMostraParagrafo:
 
     def test_non_stampa_se_non_visibile(self, capsys):
         """Se visibile=False, non deve stampare nulla."""
-        from leggi import mostra_paragrafo
+        from src.leggi import mostra_paragrafo
 
         # Act
         mostra_paragrafo(1, 10, "Testo del paragrafo", visibile=False)
@@ -710,7 +710,7 @@ class TestMostraParagrafo:
 
     def test_stampa_se_visibile(self, capsys):
         """Se visibile=True, deve stampare il contatore e il testo."""
-        from leggi import mostra_paragrafo
+        from src.leggi import mostra_paragrafo
 
         # Act
         mostra_paragrafo(3, 10, "Contenuto paragrafo", visibile=True)

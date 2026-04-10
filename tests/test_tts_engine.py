@@ -36,7 +36,7 @@ class TestConcatMp3Bytes:
 
     def test_concatena_due_mp3(self):
         """Due chunk MP3 devono essere uniti in sequenza."""
-        from tts_engine import _concat_mp3_bytes
+        from src.tts_engine import _concat_mp3_bytes
 
         # Arrange
         chunk1 = b"\xff\xfb\x90\x00" + b"\x00" * 100
@@ -51,7 +51,7 @@ class TestConcatMp3Bytes:
 
     def test_concatena_lista_vuota(self):
         """Una lista vuota deve restituire bytes vuoti."""
-        from tts_engine import _concat_mp3_bytes
+        from src.tts_engine import _concat_mp3_bytes
 
         # Act
         risultato = _concat_mp3_bytes([])
@@ -61,7 +61,7 @@ class TestConcatMp3Bytes:
 
     def test_concatena_singolo_elemento(self):
         """Un singolo chunk deve essere restituito invariato."""
-        from tts_engine import _concat_mp3_bytes
+        from src.tts_engine import _concat_mp3_bytes
 
         # Arrange
         chunk = b"\xff\xfb\x90\x00data"
@@ -88,7 +88,7 @@ class TestTTSEngineLoadFile:
         md_file.write_text("# Titolo\n\nParagrafo uno.\n\nParagrafo due.")
 
         with patch(
-            "tts_engine.file_a_testo",
+            "src.tts_engine.file_a_testo",
             return_value="Paragrafo uno.\n\nParagrafo due.",
         ) as mock_conv:
             # Act
@@ -110,7 +110,7 @@ class TestTTSEngineLoadFile:
 
         # Act — carica nuovo testo
         with patch(
-            "tts_engine.file_a_testo",
+            "src.tts_engine.file_a_testo",
             return_value="Nuovo testo.",
         ):
             engine.load_file(Path("/fake/new.md"))
@@ -123,7 +123,7 @@ class TestTTSEngineLoadFile:
         """Paragrafi vuoti (solo whitespace) devono essere esclusi."""
         # Arrange
         with patch(
-            "tts_engine.file_a_testo",
+            "src.tts_engine.file_a_testo",
             return_value="Testo.\n\n   \n\n\n\nAltro testo.",
         ):
             # Act
@@ -145,7 +145,7 @@ class TestTTSEngineCache:
 
     def test_cache_eviction_al_superamento_max(self, engine):
         """La cache deve evictare gli elementi più vecchi oltre MAX_CACHE."""
-        from tts_engine import MAX_CACHE
+        from src.tts_engine import MAX_CACHE
 
         # Arrange — inserisci MAX_CACHE + 5 elementi
         for i in range(MAX_CACHE + 5):
@@ -203,7 +203,7 @@ class TestTTSEngineSynthesize:
         # Arrange
         fake_mp3 = b"ID3\x00edge_audio"
 
-        with patch("tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
+        with patch("src.tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
             mock_future = MagicMock()
             mock_future.result.return_value = fake_mp3
             mock_rcs.return_value = mock_future
@@ -224,8 +224,8 @@ class TestTTSEngineSynthesize:
 
         with (
             patch.object(engine_con_testo, "_load_piper") as mock_load,
-            patch("tts_engine.sintetizza_piper", return_value=fake_wav),
-            patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
+            patch("src.tts_engine.sintetizza_piper", return_value=fake_wav),
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
         ):
             # Act
             risultato = engine_con_testo._synthesize(0, "paola")
@@ -243,8 +243,8 @@ class TestTTSEngineSynthesize:
         fake_mp3 = b"ID3\x00piper_audio"
 
         with (
-            patch("tts_engine.sintetizza_piper", return_value=fake_wav),
-            patch("tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
+            patch("src.tts_engine.sintetizza_piper", return_value=fake_wav),
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
             patch.object(engine_con_testo, "_load_piper") as mock_load,
         ):
             # Act
@@ -352,7 +352,7 @@ class TestTTSEnginePrefetch:
 
         with (
             patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3),
-            patch("tts_engine._executor") as mock_exec,
+            patch("src.tts_engine._executor") as mock_exec,
         ):
             # Esegui il task sincrono (elimina race condition da CI)
             mock_exec.submit.side_effect = lambda fn: fn()
@@ -437,7 +437,7 @@ class TestTTSEngineLoadPiper:
         # PiperVoice viene importato lazy dentro _load_piper con
         # "from piper import PiperVoice", quindi patchiamo il modulo piper
         with (
-            patch("tts_engine.scarica_voce_piper"),
+            patch("src.tts_engine.scarica_voce_piper"),
             patch.dict("sys.modules", {"piper": mock_piper_module}),
         ):
             # Act — chiama due volte

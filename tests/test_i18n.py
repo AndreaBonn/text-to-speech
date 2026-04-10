@@ -8,7 +8,7 @@ Copre: translations.py (get_lang, tr, get_styles_meta)
 
 from unittest.mock import MagicMock
 
-from translations import (
+from src.translations import (
     DEFAULT_LANG,
     TRANSLATIONS,
     get_lang,

@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from converters import SUPPORTED_EXTENSIONS, file_a_testo
+from src.converters import SUPPORTED_EXTENSIONS, file_a_testo
 
 # ===========================================================================
 # Test — Dispatcher file_a_testo
@@ -136,7 +136,7 @@ class TestConvertiMarkdown:
         md.write_text("# Titolo\n\nContenuto del documento.")
 
         # Act — forza fallback regex (senza pandoc)
-        with patch("converters.shutil.which", return_value=None):
+        with patch("src.converters.shutil.which", return_value=None):
             risultato = file_a_testo(md)
 
         # Assert
