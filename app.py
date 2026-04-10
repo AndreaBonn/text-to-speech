@@ -7,9 +7,10 @@ Il codice reale è in src/app.py
 """
 
 if __name__ == "__main__":
+    import os
+
     from src.app import app
     from src.config import verifica_prerequisiti
-    import os
 
     errori = verifica_prerequisiti(modalita="web")
     if errori:

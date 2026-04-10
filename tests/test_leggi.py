@@ -519,7 +519,10 @@ class TestTrovaPlayer:
         from src.leggi import _trova_player
 
         # Arrange & Act
-        with patch("src.leggi.PLATFORM", "linux"), patch("src.leggi.shutil.which", return_value=None):
+        with (
+            patch("src.leggi.PLATFORM", "linux"),
+            patch("src.leggi.shutil.which", return_value=None),
+        ):
             cmd, stdin = _trova_player("wav")
 
         # Assert
@@ -549,7 +552,10 @@ class TestHaPlayer:
         from src.leggi import _ha_player
 
         # Arrange & Act
-        with patch("src.leggi.PLATFORM", "win32"), patch("src.leggi.shutil.which", return_value=None):
+        with (
+            patch("src.leggi.PLATFORM", "win32"),
+            patch("src.leggi.shutil.which", return_value=None),
+        ):
             risultato = _ha_player("mp3")
 
         # Assert

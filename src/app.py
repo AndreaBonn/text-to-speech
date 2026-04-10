@@ -30,9 +30,8 @@ from src.translations import get_lang, get_styles_meta, tr
 from src.tts_engine import TTSEngine
 
 # Flask deve cercare templates/ e static/ nella root del progetto
-import os
-template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
-static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
+template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
+static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB (EPUB/PDF possono essere grandi)
 
