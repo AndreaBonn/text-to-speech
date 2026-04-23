@@ -27,6 +27,8 @@ jobs:
   test:
     name: Test (pytest)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +46,37 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --junitxml=test-results.xml
+
+      - name: Generate test badge
+        if: always()
+        run: |
+          python -c "
+          import json, xml.etree.ElementTree as ET
+          root = ET.parse('test-results.xml').getroot()
+          suites = root.findall('testsuite') if root.tag == 'testsuites' else [root]
+          tests = sum(int(s.attrib.get('tests', 0)) for s in suites)
+          failures = sum(int(s.attrib.get('failures', 0)) for s in suites)
+          errors = sum(int(s.attrib.get('errors', 0)) for s in suites)
+          passed = tests - failures - errors
+          badge = {
+              'schemaVersion': 1,
+              'label': 'tests',
+              'message': f'{passed}/{tests} passed' if failures + errors > 0 else f'{passed} passed',
+              'color': 'red' if failures + errors > 0 else 'brightgreen'
+          }
+          with open('badges/test-badge.json', 'w') as f:
+              json.dump(badge, f)
+          "
+
+      - name: Commit badge
+        if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add badges/test-badge.json
+          git diff --cached --quiet || git commit -m "ci: update test badge [skip ci]"
+          git push
 
   security:
     name: Security (pip-audit)
