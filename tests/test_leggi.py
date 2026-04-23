@@ -3,7 +3,8 @@ tests/test_leggi.py
 Test per le funzioni di leggi.py e moduli correlati.
 
 Copre: costanti/configurazione voci, convertitore Markdown (edge case),
-scarica_voce_piper (synthesis), concatena_wav, mostra_paragrafo.
+scarica_voce_piper (synthesis), concatena_wav, mostra_paragrafo,
+calcola_path_output, leggi_con_piper, leggi_con_edge, main.
 """
 
 import io
@@ -11,6 +12,8 @@ import tempfile
 import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # ===========================================================================
 # Test — Costanti e configurazione voci
@@ -725,3 +728,300 @@ class TestMostraParagrafo:
         captured = capsys.readouterr()
         assert "3/10" in captured.out
         assert "Contenuto paragrafo" in captured.out
+
+
+# ===========================================================================
+# Test — calcola_path_output
+# ===========================================================================
+
+
+class TestCalcolaPathOutput:
+    """Test per il calcolo delle directory di output."""
+
+    def test_struttura_output_corretta(self):
+        """Deve restituire cartella_base, path MP3 completo e cartella paragrafi."""
+        from src.leggi import calcola_path_output
+
+        # Act
+        cartella_base, path_mp3, cartella_par = calcola_path_output(Path("data/input/documento.md"))
+
+        # Assert
+        assert cartella_base.name == "documento"
+        assert path_mp3.name == "documento.mp3"
+        assert path_mp3.parent.name == "full"
+        assert cartella_par.name == "paragraphs"
+
+    def test_path_mp3_dentro_full(self):
+        """Il file MP3 deve essere in cartella_base/full/."""
+        from src.leggi import calcola_path_output
+
+        _, path_mp3, _ = calcola_path_output(Path("test.epub"))
+
+        assert path_mp3.parts[-2] == "full"
+        assert path_mp3.suffix == ".mp3"
+        assert path_mp3.stem == "test"
+
+    def test_cartella_paragraphs_dentro_base(self):
+        """La cartella paragrafi deve essere in cartella_base/paragraphs/."""
+        from src.leggi import calcola_path_output
+
+        cartella_base, _, cartella_par = calcola_path_output(Path("libro.pdf"))
+
+        assert cartella_par.parent == cartella_base
+        assert cartella_par.name == "paragraphs"
+
+    def test_estensione_non_influisce_su_stem(self):
+        """Lo stem deve essere il nome file senza estensione."""
+        from src.leggi import calcola_path_output
+
+        for ext in [".md", ".txt", ".epub", ".docx", ".pdf"]:
+            _, path_mp3, _ = calcola_path_output(Path(f"mio_file{ext}"))
+            assert path_mp3.stem == "mio_file"
+
+    def test_file_con_path_complesso(self):
+        """Deve usare solo lo stem, ignorando directory padre."""
+        from src.leggi import calcola_path_output
+
+        cartella_base, _, _ = calcola_path_output(Path("/home/user/documenti/relazione.md"))
+
+        assert cartella_base.name == "relazione"
+
+
+# ===========================================================================
+# Test — leggi_con_piper
+# ===========================================================================
+
+
+class TestLeggiConPiper:
+    """Test per la lettura CLI con Piper TTS."""
+
+    def _make_wav_bytes(self, sample_rate: int = 22050) -> bytes:
+        """Helper: crea WAV valido in memoria."""
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(b"\x00\x00" * 100)
+        return buf.getvalue()
+
+    def test_esce_se_piper_non_installato(self):
+        """Deve uscire con sys.exit(1) se piper non è importabile."""
+        from src.leggi import leggi_con_piper
+
+        with (
+            patch.dict("sys.modules", {"piper": None}),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            leggi_con_piper("Testo di prova")
+
+    def test_esce_se_no_player_e_no_salva(self):
+        """Deve uscire se non c'è player audio e non si salva."""
+        from src.leggi import leggi_con_piper
+
+        mock_piper_module = MagicMock()
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=False),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            leggi_con_piper("Testo di prova", salva_path=None)
+
+    def test_sintetizza_e_riproduce_paragrafi(self):
+        """Deve sintetizzare e riprodurre ogni paragrafo."""
+        from src.leggi import leggi_con_piper
+
+        wav = self._make_wav_bytes()
+        mock_piper_module = MagicMock()
+        mock_voce = MagicMock()
+        mock_voce.config.sample_rate = 22050
+        mock_piper_module.PiperVoice.load.return_value = mock_voce
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=True),
+            patch("src.leggi.sintetizza_piper", return_value=wav) as mock_sint,
+            patch("src.leggi.riproduci_audio") as mock_play,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_piper("Primo paragrafo\n\nSecondo paragrafo")
+
+        assert mock_sint.call_count == 2
+        assert mock_play.call_count == 2
+
+    def test_salva_mp3_senza_riprodurre(self, tmp_path):
+        """Con salva_path e senza player, deve salvare senza riprodurre."""
+        from src.leggi import leggi_con_piper
+
+        wav = self._make_wav_bytes()
+        mock_piper_module = MagicMock()
+        mock_voce = MagicMock()
+        mock_voce.config.sample_rate = 22050
+        mock_piper_module.PiperVoice.load.return_value = mock_voce
+
+        salva = tmp_path / "output.mp3"
+        cartella_par = tmp_path / "paragraphs"
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("src.leggi.sintetizza_piper", return_value=wav),
+            patch("src.leggi.wav_a_mp3") as mock_mp3,
+            patch("src.leggi.concatena_wav", return_value=wav),
+            patch("src.leggi.riproduci_audio") as mock_play,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_piper("Un paragrafo", salva_path=salva, cartella_par=cartella_par)
+
+        # Non deve riprodurre
+        mock_play.assert_not_called()
+        # Deve salvare: 1 paragrafo singolo + 1 file completo
+        assert mock_mp3.call_count == 2
+
+
+# ===========================================================================
+# Test — leggi_con_edge
+# ===========================================================================
+
+
+class TestLeggiConEdge:
+    """Test per la lettura CLI con Edge TTS."""
+
+    def test_esce_se_edge_tts_non_installato(self):
+        """Deve uscire con sys.exit(1) se edge-tts non è importabile."""
+        from src.leggi import leggi_con_edge
+
+        with (
+            patch.dict("sys.modules", {"edge_tts": None}),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            leggi_con_edge("Testo", voice_name="giuseppe")
+
+    def test_esce_se_no_player_e_no_salva(self):
+        """Deve uscire se non c'è player audio e non si salva."""
+        from src.leggi import leggi_con_edge
+
+        mock_edge = MagicMock()
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            patch("src.leggi._ha_player", return_value=False),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            leggi_con_edge("Testo", voice_name="giuseppe", salva_path=None)
+
+    def test_chiama_asyncio_run_con_loop_edge(self):
+        """Deve chiamare asyncio.run con _loop_edge."""
+        from src.leggi import leggi_con_edge
+
+        mock_edge = MagicMock()
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            patch("src.leggi._ha_player", return_value=True),
+            patch("src.leggi.asyncio.run") as mock_run,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_edge("Paragrafo uno", voice_name="giuseppe")
+
+        mock_run.assert_called_once()
+
+
+# ===========================================================================
+# Test — main
+# ===========================================================================
+
+
+class TestMain:
+    """Test per l'entry point CLI."""
+
+    def test_file_non_trovato_esce(self):
+        """Deve uscire se il file non esiste."""
+        from src.leggi import main
+
+        with (
+            patch("sys.argv", ["leggi.py", "/non_esiste_12345.md"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            main()
+
+    def test_file_vuoto_esce(self, tmp_path):
+        """Deve uscire se il file è vuoto dopo conversione."""
+        from src.leggi import main
+
+        vuoto = tmp_path / "vuoto.txt"
+        vuoto.write_text("")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(vuoto)]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            main()
+
+    def test_prerequisiti_falliti_esce(self, tmp_path):
+        """Deve uscire se verifica_prerequisiti ritorna errori."""
+        from src.leggi import main
+
+        f = tmp_path / "test.txt"
+        f.write_text("contenuto")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f)]),
+            patch("src.leggi.verifica_prerequisiti", return_value=["ffmpeg"]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            main()
+
+    def test_voce_piper_chiama_leggi_con_piper(self, tmp_path):
+        """Con --voice paola deve chiamare scarica_voce_piper + leggi_con_piper."""
+        from src.leggi import main
+
+        f = tmp_path / "test.txt"
+        f.write_text("Contenuto test")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f), "--voice", "paola"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.scarica_voce_piper") as mock_scarica,
+            patch("src.leggi.leggi_con_piper") as mock_leggi,
+        ):
+            main()
+
+        mock_scarica.assert_called_once()
+        mock_leggi.assert_called_once()
+
+    def test_voce_edge_chiama_leggi_con_edge(self, tmp_path):
+        """Con --voice giuseppe deve chiamare leggi_con_edge."""
+        from src.leggi import main
+
+        f = tmp_path / "test.txt"
+        f.write_text("Contenuto test")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f), "--voice", "giuseppe"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+        ):
+            main()
+
+        mock_leggi.assert_called_once()
+        assert mock_leggi.call_args[1]["salva_path"] is None
+
+    def test_salva_flag_calcola_path_output(self, tmp_path):
+        """Con --salva deve calcolare path output e passarli alla funzione TTS."""
+        from src.leggi import main
+
+        f = tmp_path / "documento.txt"
+        f.write_text("Contenuto da salvare")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f), "--voice", "giuseppe", "--salva"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+        ):
+            main()
+
+        # salva_path non deve essere None
+        assert mock_leggi.call_args[1]["salva_path"] is not None
+        assert mock_leggi.call_args[1]["cartella_par"] is not None
