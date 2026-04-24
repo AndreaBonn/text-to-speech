@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/AndreaBonn/text-to-speech/main/badges/test-badge.json)](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/AndreaBonn/text-to-speech/main/badges/coverage-badge.json)](https://github.com/AndreaBonn/text-to-speech/actions/workflows/ci.yml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/security-policy-blueviolet.svg)](SECURITY.md)

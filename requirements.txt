@@ -8,4 +8,5 @@ piper-tts==1.4.1
 pygments==2.20.0
 pymupdf==1.27.2.2
 pytest==9.0.3
+pytest-cov==7.1.0
 python-docx==1.2.0
