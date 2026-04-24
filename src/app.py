@@ -220,7 +220,7 @@ def api_save():
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     from src.config import verifica_prerequisiti
 
     errori = verifica_prerequisiti(modalita="web")

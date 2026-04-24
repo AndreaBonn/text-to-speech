@@ -407,3 +407,126 @@ class TestVoicesMeta:
                 "M",
                 "F",
             ), f"Voce '{voce['id']}' ha gender '{voce['gender']}' non valido"
+
+
+# ===========================================================================
+# Test — errorhandler 413 (file troppo grande)
+# ===========================================================================
+
+
+class TestTooLargeErrorHandler:
+    """Verifica che il 413 errorhandler risponda con JSON e messaggio."""
+
+    def test_upload_troppo_grande_restituisce_413(self, client):
+        """Un file superiore a MAX_CONTENT_LENGTH deve restituire 413."""
+        # Arrange — abbassa il limite a 10 byte per il solo test
+        from src.app import app
+
+        original_limit = app.config["MAX_CONTENT_LENGTH"]
+        app.config["MAX_CONTENT_LENGTH"] = 10
+
+        try:
+            payload = b"X" * 50  # 50 byte > 10 byte limite
+            data = {"file": (io.BytesIO(payload), "grande.txt")}
+
+            # Act
+            response = client.post(
+                "/api/load",
+                data=data,
+                content_type="multipart/form-data",
+            )
+        finally:
+            app.config["MAX_CONTENT_LENGTH"] = original_limit
+
+        # Assert
+        assert response.status_code == 413
+        body = response.get_json()
+        assert body is not None
+        assert "error" in body
+
+    def test_413_ha_security_headers(self, client):
+        """La risposta 413 deve avere gli header di sicurezza."""
+        # Arrange
+        from src.app import app
+
+        original_limit = app.config["MAX_CONTENT_LENGTH"]
+        app.config["MAX_CONTENT_LENGTH"] = 10
+
+        try:
+            data = {"file": (io.BytesIO(b"X" * 50), "grande.txt")}
+
+            # Act
+            response = client.post(
+                "/api/load",
+                data=data,
+                content_type="multipart/form-data",
+            )
+        finally:
+            app.config["MAX_CONTENT_LENGTH"] = original_limit
+
+        # Assert
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+
+
+# ===========================================================================
+# Test — /api/audio con style invalido
+# ===========================================================================
+
+
+class TestAudioInvalidStyle:
+    """Verifica che style non valido su /api/audio restituisca 400."""
+
+    def test_audio_style_invalido_restituisce_400(self, client_con_testo):
+        """GET /api/audio/0?style=nonexistent deve restituire 400 con error."""
+        # Act
+        response = client_con_testo.get("/api/audio/0?voice=giuseppe&style=nonexistent")
+
+        # Assert
+        assert response.status_code == 400
+        body = response.get_json()
+        assert "error" in body
+
+    def test_audio_style_vuoto_restituisce_400(self, client_con_testo):
+        """GET /api/audio/0?style= (stringa vuota) deve restituire 400."""
+        # Act
+        response = client_con_testo.get("/api/audio/0?voice=giuseppe&style=")
+
+        # Assert
+        assert response.status_code == 400
+        assert "error" in response.get_json()
+
+
+# ===========================================================================
+# Test — /api/save con style invalido
+# ===========================================================================
+
+
+class TestSaveInvalidStyle:
+    """Verifica che style non valido su /api/save restituisca 400."""
+
+    def test_save_style_invalido_restituisce_400(self, client_con_testo):
+        """POST /api/save con style inesistente deve restituire 400."""
+        # Act
+        response = client_con_testo.post(
+            "/api/save",
+            data='{"voice": "giuseppe", "style": "nonexistent"}',
+            content_type="application/json",
+        )
+
+        # Assert
+        assert response.status_code == 400
+        body = response.get_json()
+        assert "error" in body
+
+    def test_save_style_vuoto_restituisce_400(self, client_con_testo):
+        """POST /api/save con style='' deve restituire 400."""
+        # Act
+        response = client_con_testo.post(
+            "/api/save",
+            data='{"voice": "giuseppe", "style": ""}',
+            content_type="application/json",
+        )
+
+        # Assert
+        assert response.status_code == 400
+        assert "error" in response.get_json()

@@ -448,3 +448,92 @@ class TestTTSEngineLoadPiper:
         mock_piper_module.PiperVoice.load.assert_called_once()
         assert engine._piper_voice is mock_voice
         assert engine._piper_sample_rate == 22050
+
+
+# ===========================================================================
+# Test — _wav_to_mp3_bytes
+# ===========================================================================
+
+
+class TestWavToMp3Bytes:
+    """Test per la conversione WAV→MP3 tramite ffmpeg."""
+
+    def test_chiama_ffmpeg_con_pipe(self):
+        """Deve invocare ffmpeg con input/output su pipe e codec lame."""
+        from src.tts_engine import _wav_to_mp3_bytes
+
+        # Arrange
+        fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
+        fake_mp3 = b"ID3\x00fake_mp3"
+        mock_result = MagicMock()
+        mock_result.stdout = fake_mp3
+
+        with patch("src.tts_engine.subprocess.run", return_value=mock_result) as mock_run:
+            # Act
+            _wav_to_mp3_bytes(fake_wav)
+
+        # Assert — verifica argomenti chiave del comando ffmpeg
+        args, kwargs = mock_run.call_args
+        cmd = args[0]
+        assert cmd[0] == "ffmpeg"
+        assert "pipe:0" in cmd
+        assert "libmp3lame" in cmd
+        assert "pipe:1" in cmd
+        assert kwargs["input"] == fake_wav
+        assert kwargs["check"] is True
+
+    def test_restituisce_stdout_di_ffmpeg(self):
+        """Il valore di ritorno deve corrispondere a result.stdout."""
+        from src.tts_engine import _wav_to_mp3_bytes
+
+        # Arrange
+        fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
+        fake_mp3 = b"ID3\x00fake_mp3_output"
+        mock_result = MagicMock()
+        mock_result.stdout = fake_mp3
+
+        with patch("src.tts_engine.subprocess.run", return_value=mock_result):
+            # Act
+            risultato = _wav_to_mp3_bytes(fake_wav)
+
+        # Assert
+        assert risultato == fake_mp3
+
+    def test_propaga_errore_ffmpeg(self):
+        """Se ffmpeg fallisce, CalledProcessError deve propagarsi al chiamante."""
+        import subprocess as stdlib_subprocess
+
+        from src.tts_engine import _wav_to_mp3_bytes
+
+        # Arrange
+        fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
+        errore = stdlib_subprocess.CalledProcessError(
+            returncode=1, cmd=["ffmpeg"], stderr=b"error"
+        )
+
+        with (
+            patch("src.tts_engine.subprocess.run", side_effect=errore),
+            pytest.raises(stdlib_subprocess.CalledProcessError),
+        ):
+            # Act
+            _wav_to_mp3_bytes(fake_wav)
+
+
+# ===========================================================================
+# Test — TTSEngine._synthesize (race condition)
+# ===========================================================================
+
+
+class TestSynthesizeRaceCondition:
+    """Test per il path di IndexError durante la sintesi (race condition)."""
+
+    def test_synthesize_index_fuori_range_durante_sintesi(self, engine):
+        """Se i paragrafi vengono azzerati tra il check in get_audio e l'acquisizione
+        del lock in _synthesize, deve essere sollevato IndexError."""
+        # Arrange — carica un paragrafo, poi simula la race condition svuotando la lista
+        engine.load_text("Solo un paragrafo.", "test.md")
+        engine._paragraphs = []  # race: azzerato prima che _synthesize acquisisca il lock
+
+        # Act & Assert
+        with pytest.raises(IndexError, match="fuori range"):
+            engine._synthesize(0, "giuseppe")

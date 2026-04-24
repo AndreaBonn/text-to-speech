@@ -7,11 +7,12 @@ scarica_voce_piper (synthesis), concatena_wav, mostra_paragrafo,
 calcola_path_output, leggi_con_piper, leggi_con_edge, main.
 """
 
+import asyncio
 import io
 import tempfile
 import wave
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -697,6 +698,72 @@ class TestVerificaPrerequisiti:
         captured = capsys.readouterr()
         assert "pandoc" in captured.out
 
+    def test_darwin_senza_player_stampa_warning(self, capsys):
+        """Su darwin CLI, senza afplay né ffplay, deve stampare warning player."""
+        from src.config import verifica_prerequisiti
+
+        # Arrange — ffmpeg e pandoc presenti, nessun player
+        def which_side_effect(name):
+            if name in ("afplay", "ffplay"):
+                return None
+            return "/usr/bin/found"
+
+        # Act
+        with (
+            patch("src.config.PLATFORM", "darwin"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert — nessun errore critico, ma warning stampato
+        assert errori == []
+        captured = capsys.readouterr()
+        assert "player" in captured.out.lower() or "player" in captured.err.lower()
+
+    def test_darwin_con_afplay_nessun_warning_player(self, capsys):
+        """Su darwin CLI con afplay disponibile, NON deve avvertire sul player."""
+        from src.config import verifica_prerequisiti
+
+        # Arrange — tutto presente, compreso afplay
+        def which_side_effect(name):
+            return f"/usr/bin/{name}"
+
+        # Act
+        with (
+            patch("src.config.PLATFORM", "darwin"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert — nessun errore, nessun warning player nell'output
+        assert errori == []
+        captured = capsys.readouterr()
+        # Non deve avvertire sull'assenza di player
+        assert "Nessun player" not in captured.out
+        assert "Nessun player" not in captured.err
+
+    def test_win32_senza_ffplay_stampa_warning(self, capsys):
+        """Su win32 CLI, senza ffplay, deve stampare warning player."""
+        from src.config import verifica_prerequisiti
+
+        # Arrange — ffmpeg e pandoc presenti, ffplay assente
+        def which_side_effect(name):
+            if name == "ffplay":
+                return None
+            return "C:\\tools\\found.exe"
+
+        # Act
+        with (
+            patch("src.config.PLATFORM", "win32"),
+            patch("src.config.shutil.which", side_effect=which_side_effect),
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        # Assert — nessun errore critico, warning stampato
+        assert errori == []
+        captured = capsys.readouterr()
+        assert "player" in captured.out.lower() or "player" in captured.err.lower()
+
 
 # ===========================================================================
 # Test — mostra_paragrafo
@@ -1025,3 +1092,598 @@ class TestMain:
         # salva_path non deve essere None
         assert mock_leggi.call_args[1]["salva_path"] is not None
         assert mock_leggi.call_args[1]["cartella_par"] is not None
+
+
+# ===========================================================================
+# Test — wav_a_mp3
+# ===========================================================================
+
+
+class TestWavAMp3:
+    """Test per la conversione WAV → MP3 via ffmpeg."""
+
+    def test_chiama_ffmpeg_con_argomenti_corretti(self, tmp_path):
+        """Deve chiamare subprocess.run con i flag ffmpeg corretti."""
+        from src.leggi import wav_a_mp3
+
+        # Arrange
+        output = tmp_path / "output.mp3"
+        audio = b"\x00" * 100
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            wav_a_mp3(audio, output)
+
+        # Assert — ffmpeg invocato con i parametri corretti
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "ffmpeg"
+        assert "pipe:0" in cmd
+        assert "libmp3lame" in cmd
+        assert str(output) in cmd
+
+    def test_passa_wav_bytes_come_stdin(self, tmp_path):
+        """I byte WAV devono essere passati come stdin a ffmpeg."""
+        from src.leggi import wav_a_mp3
+
+        # Arrange
+        output = tmp_path / "output.mp3"
+        audio = b"\xDE\xAD\xBE\xEF"
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            wav_a_mp3(audio, output)
+
+        # Assert
+        kwargs = mock_run.call_args[1]
+        assert kwargs["input"] == audio
+        assert kwargs["check"] is True
+
+    def test_timeout_impostato_a_30(self, tmp_path):
+        """Deve impostare timeout=30 per evitare blocchi infiniti."""
+        from src.leggi import wav_a_mp3
+
+        # Arrange
+        output = tmp_path / "output.mp3"
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            wav_a_mp3(b"", output)
+
+        # Assert
+        assert mock_run.call_args[1]["timeout"] == 30
+
+
+# ===========================================================================
+# Test — concatena_mp3
+# ===========================================================================
+
+
+class TestConcatenaMp3:
+    """Test per la concatenazione MP3 via ffmpeg."""
+
+    def test_chiama_ffmpeg_con_filtro_concat(self, tmp_path):
+        """Deve usare il filtro concat di ffmpeg."""
+        from src.leggi import concatena_mp3
+
+        # Arrange
+        output = tmp_path / "completo.mp3"
+        frammenti = [b"\x01" * 50, b"\x02" * 50]
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            concatena_mp3(frammenti, output)
+
+        # Assert
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "ffmpeg"
+        assert any("concat" in arg for arg in cmd)
+        assert str(output) in cmd
+
+    def test_unisce_tutti_i_frammenti_come_stdin(self, tmp_path):
+        """I byte di tutti i frammenti devono essere concatenati e passati come stdin."""
+        from src.leggi import concatena_mp3
+
+        # Arrange
+        output = tmp_path / "completo.mp3"
+        frammenti = [b"AAA", b"BBB", b"CCC"]
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            concatena_mp3(frammenti, output)
+
+        # Assert
+        kwargs = mock_run.call_args[1]
+        assert kwargs["input"] == b"AAABBBCCC"
+        assert kwargs["check"] is True
+        assert kwargs["timeout"] == 30
+
+
+# ===========================================================================
+# Test — riproduci_audio
+# ===========================================================================
+
+
+class TestRiproduciAudio:
+    """Test per la riproduzione audio con fallback player."""
+
+    def test_nessun_player_non_chiama_subprocess(self):
+        """Senza player disponibile non deve chiamare subprocess.run."""
+        from src.leggi import riproduci_audio
+
+        # Arrange
+        with (
+            patch("src.leggi._trova_player", return_value=([], False)),
+            patch("src.leggi.subprocess.run") as mock_run,
+        ):
+            # Act
+            riproduci_audio(b"\x00" * 10, "mp3")
+
+        # Assert
+        mock_run.assert_not_called()
+
+    def test_stdin_path_passa_bytes_direttamente(self):
+        """Con player stdin-compatibile, deve passare i byte come stdin."""
+        from src.leggi import riproduci_audio
+
+        # Arrange
+        audio = b"\xAB" * 20
+        cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, True)),
+            patch("src.leggi.subprocess.run") as mock_run,
+        ):
+            # Act
+            riproduci_audio(audio, "mp3")
+
+        # Assert
+        mock_run.assert_called_once()
+        assert mock_run.call_args[1]["input"] == audio
+        assert mock_run.call_args[0][0] == cmd
+
+    def test_tempfile_path_lancia_player_con_path_file(self):
+        """Con afplay (non stdin), il comando deve includere il path del file temp."""
+        from src.leggi import riproduci_audio
+
+        # Arrange
+        audio = b"\xFF" * 30
+        cmd = ["afplay"]
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, False)),
+            patch("src.leggi.subprocess.run") as mock_run,
+        ):
+            # Act
+            riproduci_audio(audio, "mp3")
+
+        # Assert — comando = ["afplay", "/tmp/xxx.mp3"]
+        called_cmd = mock_run.call_args[0][0]
+        assert called_cmd[0] == "afplay"
+        assert len(called_cmd) == 2
+        assert called_cmd[1].endswith(".mp3")
+
+    def test_tempfile_eliminato_dopo_riproduzione(self, tmp_path):
+        """Il file temporaneo deve essere eliminato dopo la riproduzione."""
+        from src.leggi import riproduci_audio
+
+        # Arrange — crea un file temporaneo reale per verificare la cancellazione
+        fake_tmp = tmp_path / "audio_test.mp3"
+        fake_tmp.write_bytes(b"\x00")
+        tmp_name = str(fake_tmp)
+
+        class FakeTmp:
+            name = tmp_name
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def write(self, data):
+                pass
+
+        # tempfile è importato inline in riproduci_audio: patch nel modulo globale
+        with (
+            patch("src.leggi._trova_player", return_value=(["afplay"], False)),
+            patch("src.leggi.subprocess.run"),
+            patch("tempfile.NamedTemporaryFile", return_value=FakeTmp()),
+        ):
+            # Act
+            riproduci_audio(b"\x00", "mp3")
+
+        # Assert — il file deve essere stato cancellato
+        assert not fake_tmp.exists()
+
+
+# ===========================================================================
+# Test — leggi_con_piper (path aggiuntivi)
+# ===========================================================================
+
+
+class TestLeggiConPiperExtra:
+    """Test per i percorsi non coperti in leggi_con_piper."""
+
+    def _make_wav_bytes(self, sample_rate: int = 22050) -> bytes:
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(b"\x00\x00" * 100)
+        return buf.getvalue()
+
+    def test_esce_se_salva_path_e_ffmpeg_non_trovato(self, tmp_path):
+        """Deve uscire con sys.exit(1) se salva_path è specificato ma ffmpeg manca."""
+        from src.leggi import leggi_con_piper
+
+        # Arrange
+        mock_piper_module = MagicMock()
+        salva = Path(tmp_path / "output.mp3")
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=True),
+            patch("src.leggi.shutil.which", return_value=None),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            # Act
+            leggi_con_piper("Un testo", salva_path=salva)
+
+    def test_keyboard_interrupt_gestito_gracefully(self):
+        """KeyboardInterrupt durante la lettura deve terminare senza propagarsi."""
+        from src.leggi import leggi_con_piper
+
+        # Arrange
+        mock_piper_module = MagicMock()
+        mock_voce = MagicMock()
+        mock_voce.config.sample_rate = 22050
+        mock_piper_module.PiperVoice.load.return_value = mock_voce
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=True),
+            patch("src.leggi.sintetizza_piper", side_effect=KeyboardInterrupt),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act — non deve sollevare eccezioni né SystemExit
+            leggi_con_piper("Paragrafo uno\n\nParagrafo due")
+
+        # Assert implicito: se arriviamo qui senza eccezioni, il test passa
+
+
+# ===========================================================================
+# Test — leggi_con_edge (path aggiuntivi)
+# ===========================================================================
+
+
+class TestLeggiConEdgeExtra:
+    """Test per i percorsi non coperti in leggi_con_edge."""
+
+    def test_crea_directory_salva_path_e_cartella_par(self, tmp_path):
+        """Con salva_path deve creare le directory padre e cartella_par."""
+        from src.leggi import leggi_con_edge
+
+        # Arrange
+        mock_edge = MagicMock()
+        salva = tmp_path / "nuova_dir" / "output.mp3"
+        cartella_par = tmp_path / "nuova_dir" / "paragraphs"
+
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.asyncio.run"),
+        ):
+            # Act
+            leggi_con_edge(
+                "Testo", voice_name="giuseppe", salva_path=salva, cartella_par=cartella_par
+            )
+
+        # Assert
+        assert salva.parent.exists()
+        assert cartella_par.exists()
+
+    def test_crea_solo_parent_se_cartella_par_none(self, tmp_path):
+        """Con salva_path ma senza cartella_par deve creare solo la directory padre."""
+        from src.leggi import leggi_con_edge
+
+        # Arrange
+        mock_edge = MagicMock()
+        salva = tmp_path / "altra_dir" / "output.mp3"
+
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.asyncio.run"),
+        ):
+            # Act
+            leggi_con_edge("Testo", voice_name="giuseppe", salva_path=salva, cartella_par=None)
+
+        # Assert
+        assert salva.parent.exists()
+
+
+# ===========================================================================
+# Test — _loop_edge (funzione async)
+# ===========================================================================
+
+
+async def _noop_coroutine():
+    """Coroutine noop per mock asincroni."""
+    return None
+
+
+class TestLoopEdge:
+    """Test per la funzione async _loop_edge."""
+
+    def _make_mp3(self) -> bytes:
+        return b"\xFF\xFB" + b"\x00" * 48
+
+    def test_salva_mp3_per_paragrafo_e_file_completo(self, tmp_path):
+        """Con salva_path deve salvare ogni paragrafo e chiamare concatena_mp3."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        mp3 = self._make_mp3()
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        cartella_par = tmp_path / "paragraphs"
+        cartella_par.mkdir()
+        paragrafi = ["Primo", "Secondo"]
+
+        async def fake_sint(voice_id, testo):
+            return mp3
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            asyncio.run(
+                _loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, cartella_par)
+            )
+
+        # Assert — concatena_mp3 chiamato con 2 frammenti
+        mock_concat.assert_called_once()
+        lista, path = mock_concat.call_args[0]
+        assert len(lista) == 2
+        assert path == salva
+        assert (cartella_par / "001.mp3").exists()
+        assert (cartella_par / "002.mp3").exists()
+
+    def test_salva_senza_cartella_par(self, tmp_path):
+        """Con salva_path ma senza cartella_par non deve creare file singoli."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        mp3 = self._make_mp3()
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        paragrafi = ["Solo uno"]
+
+        async def fake_sint(voice_id, testo):
+            return mp3
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, None))
+
+        # Assert
+        mock_concat.assert_called_once()
+
+    def test_keyboard_interrupt_nel_loop_edge_non_propaga(self):
+        """Il loop edge completa senza propagare eccezioni su input validi."""
+        # Nota: KeyboardInterrupt sollevato in un asyncio task viene propagato
+        # direttamente da asyncio.run() in Python 3.12+, bypassando il
+        # try/except dentro la coroutine. Le righe 303-304 di leggi.py sono
+        # raggiungibili solo con SIGINT reale, non verificabile via unit test.
+        # Questo test verifica che il loop termini normalmente su input valido.
+        from src.leggi import _loop_edge
+
+        # Arrange
+        mp3 = self._make_mp3()
+        paragrafi = ["Solo uno"]
+
+        async def fake_sint(voice_id, testo):
+            return mp3
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act & Assert — non deve sollevare eccezioni
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, None, None))
+
+    def test_riproduce_con_riproduci_async(self):
+        """Con riproduce=True deve chiamare _riproduci_async per ogni paragrafo."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        mp3 = self._make_mp3()
+        paragrafi = ["Primo", "Secondo"]
+        riproduci_calls = []
+
+        async def fake_sint(voice_id, testo):
+            return mp3
+
+        async def fake_riproduci(mp3_bytes):
+            riproduci_calls.append(mp3_bytes)
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi._riproduci_async", side_effect=fake_riproduci),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, True, None, None))
+
+        # Assert
+        assert len(riproduci_calls) == 2
+
+    def test_non_chiama_concatena_se_nessun_paragrafo_salvato(self, tmp_path):
+        """Se salva_path è None, concatena_mp3 non deve essere chiamata."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        mp3 = self._make_mp3()
+        paragrafi = ["Testo"]
+
+        async def fake_sint(voice_id, testo):
+            return mp3
+
+        async def fake_riproduci(mp3_bytes):
+            pass
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi._riproduci_async", side_effect=fake_riproduci),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, True, None, None))
+
+        # Assert
+        mock_concat.assert_not_called()
+
+
+# ===========================================================================
+# Test — _riproduci_async (funzione async)
+# ===========================================================================
+
+
+class TestRiproduciAsync:
+    """Test per la funzione async _riproduci_async."""
+
+    def test_stdin_path_usa_create_subprocess_exec_con_pipe(self):
+        """Con player stdin-compatibile deve aprire il processo con stdin=PIPE."""
+        from src.leggi import _riproduci_async
+
+        # Arrange
+        cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
+        mp3 = b"\xFF\xFB" + b"\x00" * 48
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, True)),
+            patch(
+                "src.leggi.asyncio.create_subprocess_exec",
+                return_value=mock_proc,
+            ) as mock_exec,
+        ):
+            # Act
+            asyncio.run(_riproduci_async(mp3))
+
+        # Assert
+        mock_exec.assert_called_once()
+        assert mock_exec.call_args[1]["stdin"] == asyncio.subprocess.PIPE
+
+    def test_stdin_path_passa_bytes_a_communicate(self):
+        """I byte MP3 devono essere passati a proc.communicate(input=...)."""
+        from src.leggi import _riproduci_async
+
+        # Arrange
+        cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
+        mp3 = b"\xAA\xBB\xCC"
+
+        mock_proc = AsyncMock()
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, True)),
+            patch("src.leggi.asyncio.create_subprocess_exec", return_value=mock_proc),
+        ):
+            # Act
+            asyncio.run(_riproduci_async(mp3))
+
+        # Assert
+        mock_proc.communicate.assert_called_once_with(input=mp3)
+
+    def test_nessun_player_ritorna_senza_subprocess(self):
+        """Senza player disponibile deve tornare senza creare processi."""
+        from src.leggi import _riproduci_async
+
+        # Arrange
+        with (
+            patch("src.leggi._trova_player", return_value=([], False)),
+            patch("src.leggi.asyncio.create_subprocess_exec") as mock_exec,
+        ):
+            # Act
+            asyncio.run(_riproduci_async(b"\x00"))
+
+        # Assert
+        mock_exec.assert_not_called()
+
+    def test_tempfile_path_usa_proc_wait(self):
+        """Con afplay (non stdin) deve chiamare proc.wait() non proc.communicate()."""
+        from src.leggi import _riproduci_async
+
+        # Arrange
+        cmd = ["afplay"]
+        mp3 = b"\xFF" * 20
+
+        mock_proc = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, False)),
+            patch(
+                "src.leggi.asyncio.create_subprocess_exec",
+                return_value=mock_proc,
+            ) as mock_exec,
+        ):
+            # Act
+            asyncio.run(_riproduci_async(mp3))
+
+        # Assert — proc.wait() chiamato, non communicate()
+        mock_proc.wait.assert_called_once()
+        mock_proc.communicate.assert_not_called()
+        # afplay + path file temporaneo
+        call_args = mock_exec.call_args[0]
+        assert call_args[0] == "afplay"
+        assert call_args[-1].endswith(".mp3")
+
+    def test_tempfile_eliminato_dopo_riproduzione(self, tmp_path):
+        """Il file temporaneo deve essere eliminato dopo la riproduzione."""
+        from src.leggi import _riproduci_async
+
+        # Arrange
+        cmd = ["afplay"]
+        fake_tmp = tmp_path / "audio_tmp.mp3"
+        fake_tmp.write_bytes(b"\x00")
+        tmp_name = str(fake_tmp)
+
+        class FakeTmp:
+            name = tmp_name
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def write(self, data):
+                pass
+
+        mock_proc = AsyncMock()
+        mock_proc.wait = AsyncMock(return_value=0)
+
+        # tempfile è importato inline in _riproduci_async: patch nel modulo globale
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, False)),
+            patch("src.leggi.asyncio.create_subprocess_exec", return_value=mock_proc),
+            patch("tempfile.NamedTemporaryFile", return_value=FakeTmp()),
+        ):
+            # Act
+            asyncio.run(_riproduci_async(b"\x00"))
+
+        # Assert — il file temp non esiste più
+        assert not fake_tmp.exists()

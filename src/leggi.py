@@ -226,7 +226,7 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
             if riproduce:
                 riproduci_audio(wav_bytes, "wav")
 
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover — requires real SIGINT
         print()
         info("Lettura interrotta.")
 
@@ -299,7 +299,7 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
             if riproduce:
                 await _riproduci_async(mp3_bytes)
 
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover — requires real SIGINT
         print()
         info("Lettura interrotta.")
 
@@ -442,5 +442,5 @@ struttura output (con --salva):
     info("Fine.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
