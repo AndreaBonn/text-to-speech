@@ -213,6 +213,10 @@ class TestTTSEngineSynthesize:
 
         # Assert
         mock_rcs.assert_called_once()
+        # Verifica che usi il loop dedicato _async_loop
+        from src.tts_engine import _async_loop
+
+        assert mock_rcs.call_args[0][1] is _async_loop
         mock_future.result.assert_called_once_with(timeout=60)
         assert risultato == fake_mp3
 
@@ -295,7 +299,7 @@ class TestTTSEngineSaveAll:
 
         # Assert — _synthesize chiamato solo per paragrafi 1 e 2 (non 0)
         assert call_count == 2
-        assert risultato.startswith(b"cached_0")
+        assert risultato == b"cached_0synth_1synth_2"
 
     def test_save_all_senza_paragrafi_restituisce_vuoto(self, engine):
         """save_all senza paragrafi caricati deve restituire bytes vuoti."""
@@ -507,9 +511,7 @@ class TestWavToMp3Bytes:
 
         # Arrange
         fake_wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
-        errore = stdlib_subprocess.CalledProcessError(
-            returncode=1, cmd=["ffmpeg"], stderr=b"error"
-        )
+        errore = stdlib_subprocess.CalledProcessError(returncode=1, cmd=["ffmpeg"], stderr=b"error")
 
         with (
             patch("src.tts_engine.subprocess.run", side_effect=errore),

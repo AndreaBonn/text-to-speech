@@ -95,8 +95,9 @@ class TestMarkdownATesto:
         # Assert
         assert "```" not in risultato
         assert "`" not in risultato
-        # Il testo attorno ai code block rimane
+        # Il testo attorno ai code block rimane intatto
         assert "Usa il comando" in risultato
+        assert "per installare." in risultato
 
     def test_markdown_a_testo_empty(self):
         """Un file vuoto deve restituire una stringa vuota."""
@@ -225,22 +226,18 @@ class TestAudioEndpoint:
 
     def test_audio_invalid_voice(self, client):
         """GET /api/audio/0?voice=nonexistent deve restituire 400."""
-        # Arrange — voice inesistente
-
         # Act
         response = client.get("/api/audio/0?voice=nonexistent")
 
         # Assert
         assert response.status_code == 400
         data = response.get_json()
-        assert "error" in data
+        assert "nonexistent" in data["error"]
 
 
 class TestSaveEndpoint:
     def test_save_no_file_loaded(self, client):
         """POST /api/save senza file caricato deve restituire 400."""
-        # Arrange — engine senza paragrafi (resettato dal fixture)
-
         # Act
         response = client.post(
             "/api/save",
@@ -250,7 +247,9 @@ class TestSaveEndpoint:
 
         # Assert
         assert response.status_code == 400
-        assert "error" in response.get_json()
+        data = response.get_json()
+        assert data["error"]  # messaggio non vuoto
+        assert "caricato" in data["error"] or "loaded" in data["error"]
 
 
 # ===========================================================================
@@ -379,6 +378,10 @@ class TestSynthesize:
         # Assert
         assert result == fake_mp3
         mock_rcs.assert_called_once()
+        # Verifica che usi il loop dedicato _async_loop
+        from src.tts_engine import _async_loop
+
+        assert mock_rcs.call_args[0][1] is _async_loop
         mock_future.result.assert_called_once_with(timeout=60)
 
     def test_synthesize_piper_loads_model_lazy(self, engine):
@@ -450,8 +453,9 @@ class TestPrefetchLogging:
 
         # Assert
         mock_log.warning.assert_called_once()
-        args = mock_log.warning.call_args
-        assert "Prefetch paragrafo" in args[0][0]
+        call_args = mock_log.warning.call_args
+        assert "Prefetch paragrafo" in call_args[0][0]
+        assert call_args[0][1] == 0  # indice del paragrafo
 
 
 # ===========================================================================
@@ -479,7 +483,9 @@ class TestSaveEndpointPost:
 
         # Assert
         assert response.status_code == 400
-        assert "error" in response.get_json()
+        data = response.get_json()
+        assert data["error"]
+        assert "caricato" in data["error"] or "loaded" in data["error"]
 
     def test_save_post_invalid_voice(self, client):
         """POST /api/save con voce invalida deve restituire 400."""
@@ -503,21 +509,16 @@ class TestLoadPiper:
     def test_load_piper_called_once_with_concurrent_threads(self, engine):
         """_load_piper deve caricare il modello una sola volta anche con thread concorrenti."""
         # Arrange
-        load_count = 0
+        mock_voice = MagicMock()
+        mock_voice.config.sample_rate = 22050
+        mock_piper_module = MagicMock()
+        mock_piper_module.PiperVoice.load.return_value = mock_voice
 
-        def counting_load():
-            nonlocal load_count
-            # Simula _load_piper senza caricare davvero il modello
-            with engine._lock:
-                if engine._piper_voice is not None:
-                    return
-                load_count += 1
-                time.sleep(0.1)  # Simula tempo di caricamento
-                engine._piper_voice = MagicMock()
-                engine._piper_sample_rate = 22050
-
-        with patch.object(engine, "_load_piper", side_effect=counting_load):
-            # Act — 5 thread concorrenti che chiamano tutti _load_piper
+        with (
+            patch("src.tts_engine.scarica_voce_piper"),
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+        ):
+            # Act — 5 thread concorrenti che chiamano il vero _load_piper
             threads = []
             for _ in range(5):
                 t = threading.Thread(target=engine._load_piper)
@@ -526,5 +527,7 @@ class TestLoadPiper:
             for t in threads:
                 t.join()
 
-        # Assert — il modello deve essere stato caricato una sola volta
-        assert load_count == 1
+        # Assert — PiperVoice.load deve essere chiamato una sola volta
+        mock_piper_module.PiperVoice.load.assert_called_once()
+        assert engine._piper_voice is mock_voice
+        assert engine._piper_sample_rate == 22050

@@ -393,13 +393,16 @@ class TestScaricaVocePiper:
         from src.synthesis import scarica_voce_piper
 
         # Arrange & Act
-        with patch("src.synthesis.VOICE_DIR") as mock_dir, patch("src.synthesis.VOICE_URLS", {}):
+        with (
+            patch("src.synthesis.VOICE_DIR") as mock_dir,
+            patch("src.synthesis.VOICE_URLS", {}),
+            patch("src.synthesis.urllib.request.urlopen") as mock_urlopen,
+        ):
             mock_dir.mkdir = MagicMock()
-            # Nessun URL da scaricare
             scarica_voce_piper()
 
-        # Assert — nessuna chiamata a urlopen
-        # (il test verifica che non crashi con lista vuota)
+        # Assert — urlopen non deve essere chiamato con lista URL vuota
+        mock_urlopen.assert_not_called()
 
     def test_crea_directory_se_non_esiste(self):
         """Deve creare la directory dei modelli con parents=True."""
@@ -978,7 +981,7 @@ class TestLeggiConEdge:
             leggi_con_edge("Testo", voice_name="giuseppe", salva_path=None)
 
     def test_chiama_asyncio_run_con_loop_edge(self):
-        """Deve chiamare asyncio.run con _loop_edge."""
+        """Deve chiamare asyncio.run con _loop_edge e i parametri corretti."""
         from src.leggi import leggi_con_edge
 
         mock_edge = MagicMock()
@@ -990,7 +993,14 @@ class TestLeggiConEdge:
         ):
             leggi_con_edge("Paragrafo uno", voice_name="giuseppe")
 
+        # Assert — asyncio.run chiamato una volta con una coroutine
         mock_run.assert_called_once()
+        coro = mock_run.call_args[0][0]
+        # Verifica che sia una coroutine (non un valore qualsiasi)
+        import asyncio
+
+        assert asyncio.iscoroutine(coro)
+        coro.close()  # pulizia per evitare RuntimeWarning
 
 
 # ===========================================================================
@@ -1128,7 +1138,7 @@ class TestWavAMp3:
 
         # Arrange
         output = tmp_path / "output.mp3"
-        audio = b"\xDE\xAD\xBE\xEF"
+        audio = b"\xde\xad\xbe\xef"
 
         with patch("src.leggi.subprocess.run") as mock_run:
             # Act
@@ -1227,7 +1237,7 @@ class TestRiproduciAudio:
         from src.leggi import riproduci_audio
 
         # Arrange
-        audio = b"\xAB" * 20
+        audio = b"\xab" * 20
         cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
 
         with (
@@ -1247,7 +1257,7 @@ class TestRiproduciAudio:
         from src.leggi import riproduci_audio
 
         # Arrange
-        audio = b"\xFF" * 30
+        audio = b"\xff" * 30
         cmd = ["afplay"]
 
         with (
@@ -1418,7 +1428,7 @@ class TestLoopEdge:
     """Test per la funzione async _loop_edge."""
 
     def _make_mp3(self) -> bytes:
-        return b"\xFF\xFB" + b"\x00" * 48
+        return b"\xff\xfb" + b"\x00" * 48
 
     def test_salva_mp3_per_paragrafo_e_file_completo(self, tmp_path):
         """Con salva_path deve salvare ogni paragrafo e chiamare concatena_mp3."""
@@ -1441,9 +1451,7 @@ class TestLoopEdge:
             patch("src.leggi.mostra_paragrafo"),
         ):
             # Act
-            asyncio.run(
-                _loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, cartella_par)
-            )
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, cartella_par))
 
         # Assert — concatena_mp3 chiamato con 2 frammenti
         mock_concat.assert_called_once()
@@ -1567,7 +1575,7 @@ class TestRiproduciAsync:
 
         # Arrange
         cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
-        mp3 = b"\xFF\xFB" + b"\x00" * 48
+        mp3 = b"\xff\xfb" + b"\x00" * 48
 
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
@@ -1592,7 +1600,7 @@ class TestRiproduciAsync:
 
         # Arrange
         cmd = ["ffplay", "-nodisp", "-autoexit", "-loglevel", "error", "-"]
-        mp3 = b"\xAA\xBB\xCC"
+        mp3 = b"\xaa\xbb\xcc"
 
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
@@ -1628,7 +1636,7 @@ class TestRiproduciAsync:
 
         # Arrange
         cmd = ["afplay"]
-        mp3 = b"\xFF" * 20
+        mp3 = b"\xff" * 20
 
         mock_proc = AsyncMock()
         mock_proc.wait = AsyncMock(return_value=0)

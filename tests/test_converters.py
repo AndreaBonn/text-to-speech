@@ -266,6 +266,8 @@ class TestConvertiHtml:
         # Assert
         assert "Contenuto principale." in risultato
         assert "Home" not in risultato
+        assert "About" not in risultato
+        assert "Header del sito" not in risultato
         assert "Copyright" not in risultato
 
     def test_preferisce_main_content(self, tmp_path):
