@@ -18,6 +18,8 @@ e da linea di comando. Supporta Markdown, TXT, EPUB, DOCX, HTML e PDF
 con 5 voci neurali italiane. La voce predefinita (Giuseppe) è multilingue
 e pronuncia correttamente anche i termini inglesi nel testo italiano.
 
+![TTS Reader — Panoramica interfaccia web](./assets/hero-screenshot.png)
+
 ## Funzionalità
 
 - Lettura ad alta voce di file di testo (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragrafo per paragrafo
@@ -115,6 +117,8 @@ python app.py
 
 Apri **http://localhost:5000** nel browser. L'interfaccia permette di:
 
+![File caricato in TTS Reader con controlli player](./assets/file-loaded.png)
+
 - Caricare un file dal disco (MD, TXT, EPUB, DOCX, HTML, PDF)
 - Scegliere la voce dal menu a tendina
 - Selezionare lo stile di lettura (Neutro, Notiziario, Audiolibro, Lento)
@@ -166,6 +170,8 @@ data/output/<nome_file>/
 ```
 
 ## Voci disponibili
+
+![Dropdown selezione voce con 8 voci disponibili](./assets/voice-selection.png)
 
 | Voce | Motore | Genere | Lingua | Multilingue | Richiede internet |
 |------|--------|--------|--------|-------------|-------------------|

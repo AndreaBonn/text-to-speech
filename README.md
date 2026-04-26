@@ -18,6 +18,8 @@ a command-line interface. Supports Markdown, TXT, EPUB, DOCX, HTML, and PDF
 with 5 Italian neural voices. The default voice (Giuseppe) is multilingual
 and correctly pronounces English terms within Italian text.
 
+![TTS Reader — Web interface overview](./assets/hero-screenshot.png)
+
 ## Features
 
 - Read text files aloud (Markdown, TXT, EPUB, DOCX, HTML, PDF), paragraph by paragraph
@@ -115,6 +117,8 @@ python app.py
 
 Open **http://localhost:5000** in your browser. The interface allows you to:
 
+![File loaded in TTS Reader with player controls](./assets/file-loaded.png)
+
 - Upload a file from disk (MD, TXT, EPUB, DOCX, HTML, PDF)
 - Choose a voice from the dropdown menu
 - Select a reading style (Neutral, Newscast, Audiobook, Slow)
@@ -166,6 +170,8 @@ data/output/<filename>/
 ```
 
 ## Available Voices
+
+![Voice selection dropdown with 8 available voices](./assets/voice-selection.png)
 
 | Voice | Engine | Gender | Language | Multilingual | Requires Internet |
 |-------|--------|--------|----------|--------------|-------------------|
