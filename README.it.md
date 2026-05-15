@@ -207,6 +207,48 @@ Questo progetto implementa diversi livelli di sicurezza. Vedi
 [SECURITY.it.md](SECURITY.it.md) per una panoramica dettagliata di tutti
 i meccanismi implementati.
 
+## Architettura
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph LR
+    browser["Browser"]
+    cli["CLI (leggi.py)"]
+    flask["Server Flask"]
+    tts_engine["TTSEngine"]
+    conv["converters.py"]
+    synth["synthesis.py"]
+    edge_api["Edge TTS API"]
+    piper_model["Modello Piper TTS"]
+    lru_cache["Cache LRU"]
+    cfg["config.py"]
+
+    browser -->|carica file| flask
+    browser -->|richiedi audio| flask
+    cli -->|leggi file| conv
+    flask -->|converti file| conv
+    flask -->|ottieni audio| tts_engine
+    tts_engine -->|cache miss| synth
+    tts_engine -->|cache hit| lru_cache
+    synth -->|online| edge_api
+    synth -->|offline| piper_model
+    cfg -.->|voci, stili| flask
+    cfg -.->|voci, path| tts_engine
+
+    classDef core fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef data fill:#d97706,stroke:#b45309,color:#fff
+    classDef ext fill:#6b7280,stroke:#4b5563,color:#fff
+    classDef engine_cls fill:#059669,stroke:#047857,color:#fff
+
+    class browser,cli core
+    class flask,tts_engine engine_cls
+    class conv,synth,cfg data
+    class edge_api,piper_model ext
+    class lru_cache ext
+```
+
+Per diagrammi tecnici dettagliati (sequenza playback, pipeline conversione), vedi [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Struttura progetto
 
 ```

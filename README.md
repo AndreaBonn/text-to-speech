@@ -206,6 +206,48 @@ The style is automatically suggested based on file format (e.g., EPUB → Audiob
 This project implements multiple security layers. See [SECURITY.md](SECURITY.md)
 for a detailed overview of all mechanisms in place.
 
+## Architecture
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph LR
+    browser["Browser"]
+    cli["CLI (leggi.py)"]
+    flask["Flask Server"]
+    tts_engine["TTSEngine"]
+    conv["converters.py"]
+    synth["synthesis.py"]
+    edge_api["Edge TTS API"]
+    piper_model["Piper TTS Model"]
+    lru_cache["LRU Cache"]
+    cfg["config.py"]
+
+    browser -->|upload file| flask
+    browser -->|request audio| flask
+    cli -->|read file| conv
+    flask -->|parse file| conv
+    flask -->|get audio| tts_engine
+    tts_engine -->|cache miss| synth
+    tts_engine -->|cache hit| lru_cache
+    synth -->|online| edge_api
+    synth -->|offline| piper_model
+    cfg -.->|voices, styles| flask
+    cfg -.->|voices, paths| tts_engine
+
+    classDef core fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef data fill:#d97706,stroke:#b45309,color:#fff
+    classDef ext fill:#6b7280,stroke:#4b5563,color:#fff
+    classDef engine_cls fill:#059669,stroke:#047857,color:#fff
+
+    class browser,cli core
+    class flask,tts_engine engine_cls
+    class conv,synth,cfg data
+    class edge_api,piper_model ext
+    class lru_cache ext
+```
+
+For detailed technical diagrams (playback sequence, conversion pipeline), see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Project Structure
 
 ```

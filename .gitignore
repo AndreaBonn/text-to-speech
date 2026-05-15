@@ -32,7 +32,8 @@ firebase-debug.log
 .claude/
 
 # Documentazione interna (non pubblicare)
-docs/
+docs/*
+!docs/ARCHITECTURE.md
 
 # Coverage
 coverage/
