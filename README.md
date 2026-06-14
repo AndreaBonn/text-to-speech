@@ -297,3 +297,14 @@ If multiple users upload files concurrently, data will be overwritten.
 
 The Paola voice (Piper TTS) is fully offline and free from restrictions
 (training dataset under CC0 public domain license).
+
+## Support the project
+
+TTS Reader is free to use. If it helps you and you want to give something back,
+you can leave a tip via PayPal. The amount is up to you and it is entirely optional.
+
+<div align="center">
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white&style=for-the-badge)](https://paypal.me/AndreaBonacci19)
+
+</div>

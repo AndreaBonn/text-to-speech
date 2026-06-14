@@ -299,3 +299,14 @@ sovrascritti.
 
 La voce Paola (Piper TTS) è completamente offline e libera da restrizioni
 (dataset di addestramento sotto licenza CC0 public domain).
+
+## Sostieni il progetto
+
+TTS Reader è gratuita. Se ti è utile e vuoi contribuire, puoi lasciare
+un'offerta tramite PayPal. L'importo lo scegli tu ed è del tutto facoltativo.
+
+<div align="center">
+
+[![Dona con PayPal](https://img.shields.io/badge/Dona-PayPal-00457C?logo=paypal&logoColor=white&style=for-the-badge)](https://paypal.me/AndreaBonacci19)
+
+</div>
