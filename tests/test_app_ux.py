@@ -117,3 +117,46 @@ class TestDefaultVoiceAvailability:
 
         assert data["online_available"] is True
         assert data["default"] == "giuseppe"
+
+
+class TestVoicePreview:
+    def test_preview_italian_voice_reads_italian_sentence_with_its_name(self, client):
+        with patch("src.app.engine._synthesize_text", return_value=b"mp3") as synth:
+            response = client.get("/api/preview?voice=isabella&style=neutro")
+
+        assert response.status_code == 200
+        assert response.mimetype == "audio/mpeg"
+        text = synth.call_args.args[0]
+        assert "Isabella" in text
+        assert "leggere" in text
+
+    def test_preview_english_voice_reads_english_sentence(self, client):
+        with patch("src.app.engine._synthesize_text", return_value=b"mp3") as synth:
+            client.get("/api/preview?voice=ryan&style=neutro")
+
+        assert "read" in synth.call_args.args[0]
+
+    def test_preview_works_without_a_loaded_document(self, client):
+        with patch("src.app.engine._synthesize_text", return_value=b"mp3"):
+            response = client.get("/api/preview?voice=paola")
+
+        assert response.status_code == 200
+
+    def test_preview_is_cached(self, client):
+        with patch("src.app.engine._synthesize_text", return_value=b"mp3") as synth:
+            client.get("/api/preview?voice=elsa&style=lento")
+            client.get("/api/preview?voice=elsa&style=lento")
+
+        assert synth.call_count == 1
+
+    def test_preview_invalid_voice_is_rejected(self, client):
+        response = client.get("/api/preview?voice=hal9000")
+
+        assert response.status_code == 400
+
+    def test_preview_failing_online_voice_offers_offline(self, client):
+        with patch("src.app.engine._synthesize_text", side_effect=OSError("403")):
+            response = client.get("/api/preview?voice=diego&style=neutro")
+
+        assert response.status_code == 503
+        assert response.get_json()["fallback_voice"] == "paola"

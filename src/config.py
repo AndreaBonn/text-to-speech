@@ -74,6 +74,12 @@ FILE_STYLE_DEFAULTS = {
     ".pdf": "neutro",
 }
 
+# Frase letta dall'anteprima di una voce, nella lingua della voce
+PREVIEW_TEXTS = {
+    "it": "Ciao, sono {name}. Posso leggere ad alta voce i tuoi documenti.",
+    "en": "Hi, I'm {name}. I can read your documents aloud.",
+}
+
 # ─── Piattaforma e dipendenze di sistema ────────────────────────────────────
 
 PLATFORM = sys.platform  # "linux", "darwin", "win32"

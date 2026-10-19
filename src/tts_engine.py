@@ -140,6 +140,17 @@ class TTSEngine:
 
         return mp3_bytes
 
+    def get_preview(self, text: str, voice: str, style: str = DEFAULT_STYLE) -> bytes:
+        """MP3 di una frase di prova per la voce, indipendente dal documento caricato."""
+        cache_key = f"preview:{voice}:{style}"
+        with self._lock:
+            if cache_key in self._cache:
+                self._cache.move_to_end(cache_key)
+                return self._cache[cache_key]
+        mp3_bytes = self._synthesize_text(text, voice, style)
+        self._put_cache(cache_key, mp3_bytes)
+        return mp3_bytes
+
     def prefetch(self, index: int, voice: str, style: str = DEFAULT_STYLE):
         """Lancia sintesi del paragrafo in background (thread pool)."""
         if index < 0 or index >= len(self._paragraphs):

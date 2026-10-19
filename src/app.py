@@ -24,6 +24,7 @@ from src.config import (
     EDGE_VOICES,
     FILE_STYLE_DEFAULTS,
     PIPER_VOICES,
+    PREVIEW_TEXTS,
 )
 from src.converters import SUPPORTED_EXTENSIONS
 from src.translations import get_lang, get_styles_meta, tr
@@ -209,6 +210,27 @@ def api_audio(idx):
         log.exception("Errore sintesi paragrafo %d con voce %s stile %s", idx, voice, style)
         return _voice_failure_response(lang, voice, "error.voice_unavailable")
 
+    return Response(mp3_bytes, mimetype="audio/mpeg")
+
+
+@app.route("/api/preview")
+def api_preview():
+    """Legge una frase di prova con la voce e lo stile scelti, senza documento caricato."""
+    lang = get_lang(request)
+    voice = request.args.get("voice", DEFAULT_VOICE)
+    style = request.args.get("style", DEFAULT_STYLE)
+    if voice not in ALL_VOICES:
+        return jsonify({"error": tr(lang, "error.invalid_voice", voice=voice)}), 400
+    if style not in ALL_STYLES:
+        return jsonify({"error": tr(lang, "error.invalid_style", style=style)}), 400
+
+    voice_lang = EDGE_VOICES[voice]["lang"] if voice in EDGE_VOICES else "it"
+    text = PREVIEW_TEXTS[voice_lang].format(name=voice.capitalize())
+    try:
+        mp3_bytes = engine.get_preview(text, voice, style)
+    except Exception:
+        log.exception("Anteprima fallita con voce %s stile %s", voice, style)
+        return _voice_failure_response(lang, voice, "error.voice_unavailable")
     return Response(mp3_bytes, mimetype="audio/mpeg")
 
 
