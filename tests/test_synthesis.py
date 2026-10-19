@@ -44,6 +44,23 @@ class TestSintetizzaPiper:
         args = mock_voce.synthesize_wav.call_args
         assert args[0][0] == testo
 
+    def test_il_wav_contiene_i_frame_scritti_dalla_voce(self):
+        """I frame che la voce scrive nel writer ricevuto finiscono nel WAV restituito."""
+        frames = b"\x01\x00\x02\x00\x03\x00" * 50  # 150 campioni a 16 bit
+        scritto_su = []
+
+        class VoceFinta:
+            def synthesize_wav(self, testo, wav_file):
+                scritto_su.append(wav_file)
+                wav_file.writeframes(frames)
+
+        risultato = sintetizza_piper(VoceFinta(), "Ciao", 22050)
+
+        with wave.open(io.BytesIO(risultato), "rb") as wf:
+            assert wf.getnframes() == 150
+            assert wf.readframes(150) == frames
+        assert isinstance(scritto_su[0], wave.Wave_write)
+
     def test_sample_rate_diversi(self):
         """Deve rispettare il sample rate fornito."""
         mock_voce = MagicMock()
@@ -162,12 +179,13 @@ class TestScaricaVocePiperDownload:
                 {mock_dest: "http://example.com/model.onnx"},
             ),
             patch("src.synthesis.urllib.request.urlopen", return_value=mock_response),
-            patch("builtins.open", return_value=mock_file),
+            patch("builtins.open", return_value=mock_file) as mock_open,
             patch("builtins.print"),
         ):
             scarica_voce_piper()
 
-        assert mock_file.write.call_count == 2
+        assert [c.args for c in mock_file.write.call_args_list] == [(b"x" * 64,), (b"y" * 64,)]
+        mock_open.assert_called_once_with(mock_dest, "wb")
 
     def test_download_fallito_solleva_runtime_error(self):
         """Deve sollevare RuntimeError se il download fallisce."""

@@ -4,11 +4,19 @@ Engine behaviors needed by the web UI: rejecting documents without text
 without losing the document that is currently loaded.
 """
 
-from unittest.mock import patch
+import threading
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.tts_engine import EmptyDocumentError
+
+
+@pytest.fixture(autouse=True)
+def executor_finto(monkeypatch):
+    """Nessun prefetch reale nell'executor di modulo (get_audio lo lancia di default)."""
+    monkeypatch.setattr("src.tts_engine._executor", MagicMock())
 
 
 class TestLoadWithoutText:
@@ -46,6 +54,30 @@ class TestOnlineProbe:
             engine.is_online_available()
             engine.is_online_available()
 
+        assert synth.call_count == 1
+
+
+class TestOnlineProbeVoiceAndFailureCache:
+    def test_probe_uses_an_online_voice(self, engine):
+        from src.config import EDGE_VOICES
+
+        with patch.object(engine, "_synthesize_text", return_value=b"mp3") as synth:
+            engine.is_online_available()
+
+        voice = synth.call_args.args[1]
+        assert voice in EDGE_VOICES
+        assert voice != "paola"
+
+    def test_failed_probe_still_cached_is_not_repeated(self, engine):
+        with (
+            patch("src.tts_engine.time") as clock,
+            patch.object(engine, "_synthesize_text", side_effect=OSError("down")) as synth,
+        ):
+            clock.monotonic.side_effect = [1000.0, 1010.0]
+            first = engine.is_online_available()
+            second = engine.is_online_available()
+
+        assert (first, second) == (False, False)
         assert synth.call_count == 1
 
 
@@ -124,3 +156,57 @@ class TestStaleSynthesisAfterNewDocument:
             audio = engine.save_all("paola")
 
         assert audio == b"Vecchio uno.Vecchio due."
+
+
+class TestSynthesisStartedOnPreviousDocument:
+    """get_audio iniziato sul documento A e finito dopo il caricamento di B."""
+
+    @staticmethod
+    def _load_new(engine, how):
+        if how == "text":
+            engine.load_text("Nuovo uno.\n\nNuovo due.", "nuovo.txt")
+        else:
+            with patch("src.tts_engine.file_a_testo", return_value="Nuovo uno.\n\nNuovo due."):
+                engine.load_file(Path("/fake/nuovo.txt"))
+
+    @pytest.mark.parametrize("how", ["text", "file"])
+    def test_get_audio_finished_after_new_load_does_not_poison_new_document(self, engine, how):
+        engine.load_text("Vecchio uno.\n\nVecchio due.", "vecchio.txt")
+        started, release = threading.Event(), threading.Event()
+
+        def synth(text, voice, style="neutro", timeout=60):
+            if text == "Vecchio uno.":
+                started.set()
+                release.wait(5)
+            return text.encode()
+
+        results = []
+        with patch.object(engine, "_synthesize_text", side_effect=synth):
+            worker = threading.Thread(target=lambda: results.append(engine.get_audio(0, "paola")))
+            worker.start()
+            assert started.wait(5)
+            self._load_new(engine, how)
+            release.set()
+            worker.join(5)
+            assert not worker.is_alive()
+            audio = engine.get_audio(0, "paola")
+
+        assert results == [b"Vecchio uno."]
+        assert audio == b"Nuovo uno."
+
+    def test_get_audio_without_new_load_is_cached(self, engine):
+        engine.load_text("Uno.\n\nDue.", "x.txt")
+
+        with patch.object(engine, "_synthesize_text", return_value=b"mp3") as synth:
+            engine.get_audio(0, "paola")
+            engine.get_audio(0, "paola")
+
+        assert synth.call_count == 1
+
+
+class TestLoadFileDisplayName:
+    def test_display_name_replaces_temporary_file_name(self, engine):
+        with patch("src.tts_engine.file_a_testo", return_value="Testo."):
+            engine.load_file(Path("upload_8f3a.txt"), display_name="relazione.pdf")
+
+        assert engine.filename == "relazione.pdf"

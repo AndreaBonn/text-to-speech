@@ -5,7 +5,8 @@ Test per tts_engine.py: cache LRU, sintesi, prefetch, save_all, load_file.
 Le dipendenze esterne (edge-tts, piper, ffmpeg) sono sempre mockate.
 """
 
-import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +15,14 @@ import pytest
 # ===========================================================================
 # Fixture
 # ===========================================================================
+
+
+@pytest.fixture(autouse=True)
+def executor_finto(monkeypatch):
+    """Nessun prefetch reale nell'executor di modulo: get_audio lo lancia di default."""
+    finto = MagicMock()
+    monkeypatch.setattr("src.tts_engine._executor", finto)
+    return finto
 
 
 @pytest.fixture()
@@ -206,7 +215,12 @@ class TestTTSEngineSynthesize:
         with patch("src.tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
             mock_future = MagicMock()
             mock_future.result.return_value = fake_mp3
-            mock_rcs.return_value = mock_future
+
+            def consuma_coroutine(coro, loop):
+                coro.close()  # evita "coroutine was never awaited"
+                return mock_future
+
+            mock_rcs.side_effect = consuma_coroutine
 
             # Act
             risultato = engine_con_testo._synthesize(0, "giuseppe")
@@ -319,35 +333,70 @@ class TestTTSEnginePrefetch:
     """Test per il prefetch in background."""
 
     def test_prefetch_non_blocca(self, engine_con_testo):
-        """prefetch deve ritornare immediatamente (non bloccante)."""
+        """prefetch ritorna mentre la sintesi è ancora in corso (bloccata su Event)."""
         # Arrange
-        with patch.object(engine_con_testo, "_synthesize", return_value=b"mp3"):
-            # Act & Assert — deve completare in meno di 1 secondo
-            start = time.monotonic()
-            engine_con_testo.prefetch(0, "giuseppe")
-            elapsed = time.monotonic() - start
+        started, release = threading.Event(), threading.Event()
 
-            assert elapsed < 1.0
+        def sintesi_lenta(index, voice, style):
+            started.set()
+            release.wait(5)
+            return b"mp3"
 
-    def test_prefetch_skip_se_gia_in_cache(self, engine_con_testo):
-        """Se il paragrafo è già in cache, il prefetch non deve fare nulla."""
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            with (
+                patch("src.tts_engine._executor", executor),
+                patch.object(engine_con_testo, "_synthesize", side_effect=sintesi_lenta),
+            ):
+                # Act
+                pending = engine_con_testo.prefetch(0, "giuseppe")
+
+                # Assert — prefetch è tornato, la sintesi è partita ma non finita
+                assert started.wait(5)
+                assert not pending.done()
+                assert "giuseppe:neutro:0" not in engine_con_testo._cache
+
+                release.set()
+                pending.result(timeout=5)
+
+            assert engine_con_testo._cache["giuseppe:neutro:0"] == b"mp3"
+        finally:
+            release.set()
+            executor.shutdown(wait=True)
+
+    def test_prefetch_skip_se_gia_in_cache(self, engine_con_testo, executor_finto):
+        """Se il paragrafo è già in cache, il prefetch non sottomette nulla."""
         # Arrange
         engine_con_testo._put_cache("giuseppe:neutro:0", b"cached")
 
+        # Act
+        engine_con_testo.prefetch(0, "giuseppe")
+
+        # Assert
+        executor_finto.submit.assert_not_called()
+
+        # Caso positivo appaiato: un paragrafo non in cache viene sottomesso
+        engine_con_testo.prefetch(1, "giuseppe")
+        executor_finto.submit.assert_called_once()
+
+    def test_prefetch_ignora_indice_fuori_range(self, engine_con_testo, executor_finto):
+        """Indici fuori range non sintetizzano né sottomettono nulla."""
+        # Act
         with patch.object(engine_con_testo, "_synthesize") as mock_synth:
-            # Act
-            engine_con_testo.prefetch(0, "giuseppe")
-            # Attendi brevemente per il thread pool
-            time.sleep(0.1)
+            risultati = [
+                engine_con_testo.prefetch(-1, "giuseppe"),
+                engine_con_testo.prefetch(3, "giuseppe"),  # 3 paragrafi: ultimo indice valido 2
+                engine_con_testo.prefetch(999, "giuseppe"),
+            ]
 
-        # Assert — _synthesize NON deve essere chiamato
-        mock_synth.assert_not_called()
+            # Assert
+            assert risultati == [None, None, None]
+            executor_finto.submit.assert_not_called()
+            mock_synth.assert_not_called()
 
-    def test_prefetch_ignora_indice_fuori_range(self, engine_con_testo):
-        """Indici fuori range devono essere ignorati silenziosamente."""
-        # Act & Assert — non deve lanciare eccezioni
-        engine_con_testo.prefetch(-1, "giuseppe")
-        engine_con_testo.prefetch(999, "giuseppe")
+            # Caso positivo appaiato: l'ultimo indice valido viene sottomesso
+            engine_con_testo.prefetch(2, "giuseppe")
+            executor_finto.submit.assert_called_once()
 
     def test_prefetch_inserisce_in_cache(self, engine_con_testo):
         """Il prefetch deve inserire il risultato in cache al completamento."""
@@ -539,3 +588,131 @@ class TestSynthesizeRaceCondition:
         # Act & Assert
         with pytest.raises(IndexError, match="fuori range"):
             engine._synthesize(0, "giuseppe")
+
+
+# ===========================================================================
+# Test — _synthesize_text: parametri Edge (voce, stile)
+# ===========================================================================
+
+
+@pytest.fixture()
+def chiamate_edge():
+    """Sostituisce sintetizza_edge con una coroutine che registra gli argomenti."""
+    chiamate = []
+
+    async def finto(voice_id, testo, rate, pitch):
+        chiamate.append((voice_id, testo, rate, pitch))
+        return b"mp3-edge"
+
+    with patch("src.tts_engine.sintetizza_edge", finto):
+        yield chiamate
+
+
+class TestEdgeSynthesisParameters:
+    """La voce e lo stile scelti arrivano a Edge TTS con i valori del README."""
+
+    @pytest.mark.parametrize(
+        ("voice", "edge_id"),
+        [
+            ("giuseppe", "it-IT-GiuseppeMultilingualNeural"),
+            ("isabella", "it-IT-IsabellaNeural"),
+            ("ryan", "en-GB-RyanNeural"),
+        ],
+    )
+    def test_voce_edge_usa_il_suo_identificativo(self, engine, chiamate_edge, voice, edge_id):
+        audio = engine.get_preview("Ciao", voice, "neutro")
+
+        assert audio == b"mp3-edge"
+        assert chiamate_edge == [(edge_id, "Ciao", "+0%", "+0Hz")]
+
+    @pytest.mark.parametrize(
+        ("style", "rate", "pitch"),
+        [
+            ("notiziario", "+13%", "+5Hz"),
+            ("audiolibro", "-8%", "-3Hz"),
+            ("lento", "-20%", "+0Hz"),
+        ],
+    )
+    def test_stile_arriva_a_edge_con_velocita_e_tono_del_readme(
+        self, engine, chiamate_edge, style, rate, pitch
+    ):
+        engine.get_preview("Testo", "giuseppe", style)
+
+        assert chiamate_edge == [("it-IT-GiuseppeMultilingualNeural", "Testo", rate, pitch)]
+
+    def test_stile_sconosciuto_usa_lo_stile_neutro(self, engine, chiamate_edge):
+        engine.get_preview("Testo", "giuseppe", "inesistente")
+
+        assert chiamate_edge == [("it-IT-GiuseppeMultilingualNeural", "Testo", "+0%", "+0Hz")]
+
+
+# ===========================================================================
+# Test — primo uso di Piper
+# ===========================================================================
+
+
+class TestPiperFirstUse:
+    """Al primo uso offline: download, caricamento con i path giusti, sample rate."""
+
+    def _piper_module(self, order):
+        voce = MagicMock()
+        voce.config.sample_rate = 16000
+        modulo = MagicMock()
+
+        def carica(*args, **kwargs):
+            order.append("load")
+            return voce
+
+        modulo.PiperVoice.load.side_effect = carica
+        return modulo, voce
+
+    def test_primo_uso_scarica_poi_carica_modello_e_config(self, engine):
+        order = []
+        modulo, voce = self._piper_module(order)
+        modello = str(Path.home() / "piper-voices" / "it_IT-paola-medium.onnx")
+
+        def registra_download():
+            order.append("dl")
+
+        with (
+            patch("src.tts_engine.scarica_voce_piper", side_effect=registra_download) as dl,
+            patch.dict("sys.modules", {"piper": modulo}),
+            patch("src.tts_engine.sintetizza_piper", return_value=b"wav") as sint,
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=b"mp3-piper"),
+        ):
+            engine.load_text("Uno.\n\nDue.", "x.txt")
+            primo = engine.get_audio(0, "paola")
+            secondo = engine.get_audio(1, "paola")
+
+        assert (primo, secondo) == (b"mp3-piper", b"mp3-piper")
+        dl.assert_called_once_with()
+        assert order == ["dl", "load"]
+        modulo.PiperVoice.load.assert_called_once_with(modello, config_path=modello + ".json")
+        assert [c.args for c in sint.call_args_list] == [
+            (voce, "Uno.", 16000),
+            (voce, "Due.", 16000),
+        ]
+
+
+# ===========================================================================
+# Test — anteprima: una voce, stili diversi
+# ===========================================================================
+
+
+class TestPreview:
+    def test_anteprima_di_due_stili_sono_due_sintesi(self, engine):
+        with patch.object(
+            engine, "_synthesize_text", side_effect=[b"mp3-notiziario", b"mp3-lento"]
+        ) as synth:
+            a = engine.get_preview("Ciao", "giuseppe", "notiziario")
+            b = engine.get_preview("Ciao", "giuseppe", "lento")
+
+        assert (a, b) == (b"mp3-notiziario", b"mp3-lento")
+        assert synth.call_count == 2
+
+    def test_anteprima_stessa_voce_e_stile_usa_la_cache(self, engine):
+        with patch.object(engine, "_synthesize_text", return_value=b"mp3") as synth:
+            engine.get_preview("Ciao", "giuseppe", "lento")
+            engine.get_preview("Ciao", "giuseppe", "lento")
+
+        assert synth.call_count == 1
