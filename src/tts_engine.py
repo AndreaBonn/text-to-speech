@@ -206,13 +206,27 @@ class TTSEngine:
         report(0, total)
         all_mp3 = []
         for i, text in enumerate(snapshot):
-            if generation == self._generation:
-                all_mp3.append(self.get_audio(i, voice, style))
-            else:
-                # Another document was loaded mid-save: finish this one from the snapshot
-                all_mp3.append(self._synthesize_text(text, voice, style))
+            all_mp3.append(self._snapshot_audio(i, text, voice, style, generation))
             report(i + 1, total)
         return _concat_mp3_bytes(all_mp3)
+
+    def _snapshot_audio(
+        self, index: int, text: str, voice: str, style: str, generation: int
+    ) -> bytes:
+        """Audio of a snapshot paragraph: cached only while its document is current.
+
+        The text always comes from the snapshot, never from ``self._paragraphs``
+        by index: a document loaded mid-save would otherwise leak its paragraphs
+        (or an IndexError) into the file being saved.
+        """
+        cache_key = f"{voice}:{style}:{index}"
+        with self._lock:
+            if generation == self._generation and cache_key in self._cache:
+                self._cache.move_to_end(cache_key)
+                return self._cache[cache_key]
+        mp3_bytes = self._synthesize_text(text, voice, style)
+        self._put_cache_if_current(cache_key, mp3_bytes, generation)
+        return mp3_bytes
 
     def _synthesize(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Sintetizza un paragrafo. Restituisce sempre MP3."""
@@ -276,16 +290,20 @@ class TTSEngine:
             self._piper_voice = voice
 
     def _put_cache_if_current(self, key: str, data: bytes, generation: int):
+        # Check and insert under one lock: a load between them would let audio
+        # of the previous document into the new one's cache.
         with self._lock:
-            if generation != self._generation:
-                return
-        self._put_cache(key, data)
+            if generation == self._generation:
+                self._insert_cache_locked(key, data)
 
     def _put_cache(self, key: str, data: bytes):
         with self._lock:
-            self._cache[key] = data
-            while len(self._cache) > MAX_CACHE:
-                self._cache.popitem(last=False)
+            self._insert_cache_locked(key, data)
+
+    def _insert_cache_locked(self, key: str, data: bytes):
+        self._cache[key] = data
+        while len(self._cache) > MAX_CACHE:
+            self._cache.popitem(last=False)
 
     def _clear_cache(self):
         with self._lock:

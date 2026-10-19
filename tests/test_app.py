@@ -422,12 +422,14 @@ class TestSaveAll:
 
         call_count = 0
 
-        def fake_get_audio(idx, voice, style):
+        testi = engine.paragraphs
+
+        def fake_synthesize_text(text, voice, style):
             nonlocal call_count
             call_count += 1
-            return f"mp3_{idx}".encode()
+            return f"mp3_{testi.index(text)}".encode()
 
-        with patch.object(engine, "get_audio", side_effect=fake_get_audio):
+        with patch.object(engine, "_synthesize_text", side_effect=fake_synthesize_text):
             # Act
             result = engine.save_all("giuseppe")
 

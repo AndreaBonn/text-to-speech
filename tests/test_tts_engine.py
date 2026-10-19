@@ -285,10 +285,11 @@ class TestTTSEngineSaveAll:
         # Arrange
         mp3_chunks = [b"chunk_0", b"chunk_1", b"chunk_2"]
 
+        testi = engine_con_testo.paragraphs
         with patch.object(
             engine_con_testo,
-            "_synthesize",
-            side_effect=lambda i, v, s: mp3_chunks[i],
+            "_synthesize_text",
+            side_effect=lambda testo, v, s: mp3_chunks[testi.index(testo)],
         ):
             # Act
             risultato = engine_con_testo.save_all("giuseppe")
@@ -302,12 +303,14 @@ class TestTTSEngineSaveAll:
         engine_con_testo._put_cache("giuseppe:neutro:0", b"cached_0")
         call_count = 0
 
-        def fake_synthesize(i, v, s):
+        testi = engine_con_testo.paragraphs
+
+        def fake_synthesize(testo, v, s):
             nonlocal call_count
             call_count += 1
-            return f"synth_{i}".encode()
+            return f"synth_{testi.index(testo)}".encode()
 
-        with patch.object(engine_con_testo, "_synthesize", side_effect=fake_synthesize):
+        with patch.object(engine_con_testo, "_synthesize_text", side_effect=fake_synthesize):
             # Act
             risultato = engine_con_testo.save_all("giuseppe")
 

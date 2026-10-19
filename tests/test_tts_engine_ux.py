@@ -158,6 +158,61 @@ class TestStaleSynthesisAfterNewDocument:
         assert audio == b"Vecchio uno.Vecchio due."
 
 
+class TestSaveAllConsistency:
+    """save_all works on its snapshot: no extra syntheses, no cross-document cache."""
+
+    def test_save_all_does_not_prefetch_paragraphs_it_is_about_to_synthesize(
+        self, engine, executor_finto
+    ):
+        import src.tts_engine as tts_engine
+
+        engine.load_text("Uno.\n\nDue.\n\nTre.", "x.txt")
+
+        with patch.object(engine, "_synthesize_text", side_effect=lambda t, v, s: t.encode()):
+            audio = engine.save_all("paola")
+
+        assert audio == b"Uno.Due.Tre."
+        tts_engine._executor.submit.assert_not_called()
+
+    def test_save_all_fills_the_cache_of_the_current_document(self, engine):
+        engine.load_text("Uno.\n\nDue.", "x.txt")
+
+        with patch.object(engine, "_synthesize_text", side_effect=lambda t, v, s: t.encode()):
+            engine.save_all("paola", "lento")
+
+        assert engine._cache == {"paola:lento:0": b"Uno.", "paola:lento:1": b"Due."}
+
+    def test_load_during_save_keeps_old_audio_out_of_the_new_cache(self, engine):
+        engine.load_text("Vecchio uno.\n\nVecchio due.", "vecchio.txt")
+
+        def synth(text, voice, style="neutro"):
+            if text == "Vecchio uno.":
+                engine.load_text("Nuovo uno.\n\nNuovo due.", "nuovo.txt")
+            return text.encode()
+
+        with patch.object(engine, "_synthesize_text", side_effect=synth):
+            audio = engine.save_all("paola")
+
+        assert audio == b"Vecchio uno.Vecchio due."
+        assert engine.paragraphs == ["Nuovo uno.", "Nuovo due."]
+        assert engine._cache == {}
+
+    def test_save_never_uses_the_new_document_cached_audio(self, engine):
+        engine.load_text("Vecchio uno.\n\nVecchio due.", "vecchio.txt")
+
+        def synth(text, voice, style="neutro"):
+            if text == "Vecchio uno.":
+                engine.load_text("Nuovo uno.\n\nNuovo due.", "nuovo.txt")
+                engine._put_cache("paola:neutro:1", b"Nuovo due.")  # played meanwhile
+            return text.encode()
+
+        with patch.object(engine, "_synthesize_text", side_effect=synth):
+            audio = engine.save_all("paola")
+
+        assert audio == b"Vecchio uno.Vecchio due."
+        assert engine._cache == {"paola:neutro:1": b"Nuovo due."}
+
+
 class TestSynthesisStartedOnPreviousDocument:
     """get_audio iniziato sul documento A e finito dopo il caricamento di B."""
 
