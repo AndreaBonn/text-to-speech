@@ -230,7 +230,7 @@ class TestAudioEndpointSuccess:
             side_effect=RuntimeError("ffmpeg crashed"),
         ):
             # Act
-            response = client_con_testo.get("/api/audio/0?voice=giuseppe")
+            response = client_con_testo.get("/api/audio/0?voice=paola")
 
         # Assert
         assert response.status_code == 500

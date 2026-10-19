@@ -5,6 +5,7 @@ technical knowledge: readable error messages, accepted file names, recovery hint
 """
 
 import io
+from unittest.mock import patch
 
 
 def _upload(client, name: str, content: bytes = b"Testo di prova."):
@@ -63,3 +64,40 @@ class TestLoadFileWithoutText:
 
         assert response.status_code == 200
         assert response.get_json()["total"] == 1
+
+
+def _load_document(client):
+    from src import app as flask_app
+
+    flask_app.engine._paragraphs = ["Primo paragrafo.", "Secondo paragrafo."]
+    flask_app.engine._filename = "capitolo.md"
+
+
+class TestOnlineVoiceFailure:
+    def test_audio_with_failing_online_voice_names_voice_and_offers_offline(self, client):
+        _load_document(client)
+        with patch("src.app.engine.get_audio", side_effect=OSError("403")):
+            response = client.get("/api/audio/0?voice=giuseppe&style=neutro&lang=it")
+
+        assert response.status_code == 503
+        data = response.get_json()
+        assert "Giuseppe" in data["error"]
+        assert data["fallback_voice"] == "paola"
+
+    def test_audio_with_failing_offline_voice_has_no_fallback(self, client):
+        _load_document(client)
+        with patch("src.app.engine.get_audio", side_effect=OSError("ffmpeg")):
+            response = client.get("/api/audio/0?voice=paola&style=neutro&lang=it")
+
+        assert response.status_code == 500
+        assert "fallback_voice" not in response.get_json()
+
+    def test_save_with_failing_online_voice_returns_json_with_fallback(self, client):
+        _load_document(client)
+        with patch("src.app.engine.save_all", side_effect=OSError("403")):
+            response = client.post("/api/save?lang=it", json={"voice": "giuseppe"})
+
+        assert response.status_code == 503
+        data = response.get_json()
+        assert "Giuseppe" in data["error"]
+        assert data["fallback_voice"] == "paola"

@@ -62,6 +62,17 @@ VOICES_META = [
 ]
 
 
+OFFLINE_VOICE = sorted(PIPER_VOICES)[0]
+
+
+def _voice_failure_response(lang: str, voice: str, key: str):
+    """Errore di sintesi: per una voce online propone la voce offline come alternativa."""
+    if voice in EDGE_VOICES:
+        body = {"error": tr(lang, key, voice=voice.capitalize()), "fallback_voice": OFFLINE_VOICE}
+        return jsonify(body), 503
+    return jsonify({"error": tr(lang, "error.synthesis_failed")}), 500
+
+
 # ─── Security headers ───────────────────────────────────────────────────────
 
 
@@ -193,7 +204,7 @@ def api_audio(idx):
         return jsonify({"error": tr(lang, "error.paragraph_not_found", idx=idx)}), 404
     except Exception:
         log.exception("Errore sintesi paragrafo %d con voce %s stile %s", idx, voice, style)
-        return jsonify({"error": tr(lang, "error.synthesis_failed")}), 500
+        return _voice_failure_response(lang, voice, "error.voice_unavailable")
 
     return Response(mp3_bytes, mimetype="audio/mpeg")
 
@@ -221,7 +232,11 @@ def api_save():
     if not engine.paragraphs:
         return jsonify({"error": tr(lang, "error.no_file_loaded")}), 400
 
-    mp3_bytes = engine.save_all(voice, style)
+    try:
+        mp3_bytes = engine.save_all(voice, style)
+    except Exception:
+        log.exception("Salvataggio MP3 fallito con voce %s stile %s", voice, style)
+        return _voice_failure_response(lang, voice, "error.save_voice_unavailable")
 
     stem = Path(engine.filename).stem
     safe_name = "".join(c for c in f"{stem}.mp3" if c.isalnum() or c in ".-_ ") or "output.mp3"
