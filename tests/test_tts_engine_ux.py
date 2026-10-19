@@ -430,3 +430,123 @@ class TestConcurrentOnlineProbe:
 
         assert len(probes) == 1
         assert results == [True, True]
+
+
+class TestRequestJoinsRunningSynthesis:
+    """R7: asking for a paragraph that is being prefetched waits for that synthesis."""
+
+    def test_get_audio_reuses_the_prefetch_in_flight(self, engine, monkeypatch):
+        from concurrent.futures import ThreadPoolExecutor
+
+        pool = ThreadPoolExecutor(max_workers=1)
+        monkeypatch.setattr("src.tts_engine._executor", pool)
+        engine.load_text("Uno.\n\nDue.", "x.txt")
+        entered, release = threading.Event(), threading.Event()
+        synthesized = []
+
+        def synth(text, voice, style="neutro", timeout=None):
+            synthesized.append(text)
+            if text == "Due.":
+                entered.set()
+                assert release.wait(5)
+            return text.encode()
+
+        results = []
+        try:
+            with patch.object(engine, "_synthesize_text", side_effect=synth):
+                engine.prefetch(1, "paola")
+                assert entered.wait(5)
+                request = threading.Thread(
+                    target=lambda: results.append(engine.get_audio(1, "paola"))
+                )
+                request.start()
+                request.join(timeout=1)
+                release.set()
+                request.join(5)
+        finally:
+            pool.shutdown(wait=True)
+
+        assert synthesized == ["Due."]
+        assert results == [b"Due."]
+        assert engine._cache == {"paola:neutro:1": b"Due."}
+
+    def test_failed_synthesis_is_reported_to_the_waiting_request(self, engine, monkeypatch):
+        from concurrent.futures import ThreadPoolExecutor
+
+        pool = ThreadPoolExecutor(max_workers=1)
+        monkeypatch.setattr("src.tts_engine._executor", pool)
+        engine.load_text("Uno.\n\nDue.", "x.txt")
+        entered, release = threading.Event(), threading.Event()
+
+        def failing(text, voice, style="neutro", timeout=None):
+            entered.set()
+            assert release.wait(5)
+            raise OSError("Edge down")
+
+        errors = []
+
+        def request():
+            try:
+                engine.get_audio(1, "paola")
+            except OSError as err:
+                errors.append(str(err))
+
+        try:
+            with patch.object(engine, "_synthesize_text", side_effect=failing):
+                engine.prefetch(1, "paola")
+                assert entered.wait(5)
+                waiting = threading.Thread(target=request)
+                waiting.start()
+                waiting.join(timeout=1)
+                release.set()
+                waiting.join(5)
+        finally:
+            pool.shutdown(wait=True)
+
+        assert errors == ["Edge down"]
+        assert engine._cache == {}
+
+    def test_retry_after_a_failed_synthesis_synthesizes_again(self, engine):
+        engine.load_text("Uno.", "x.txt")
+        outcomes = [OSError("Edge down"), b"Uno."]
+
+        def flaky(text, voice, style="neutro", timeout=None):
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        with patch.object(engine, "_synthesize_text", side_effect=flaky):
+            with pytest.raises(OSError, match="Edge down"):
+                engine.get_audio(0, "paola")
+            retried = engine.get_audio(0, "paola")
+
+        assert retried == b"Uno."
+        assert outcomes == []
+
+    def test_new_document_never_joins_a_synthesis_of_the_previous_one(self, engine):
+        engine.load_text("Vecchio.", "vecchio.txt")
+        entered, release = threading.Event(), threading.Event()
+
+        def synth(text, voice, style="neutro", timeout=None):
+            if text == "Vecchio.":
+                entered.set()
+                assert release.wait(5)
+            return text.encode()
+
+        old_result, new_result = [], []
+        with patch.object(engine, "_synthesize_text", side_effect=synth):
+            old = threading.Thread(target=lambda: old_result.append(engine.get_audio(0, "paola")))
+            old.start()
+            assert entered.wait(5)
+            engine.load_text("Nuovo.", "nuovo.txt")
+            new = threading.Thread(target=lambda: new_result.append(engine.get_audio(0, "paola")))
+            new.start()
+            new.join(timeout=1)
+            release.set()
+            old.join(5)
+            new.join(5)
+
+        assert new_result == [b"Nuovo."]
+        assert old_result == [b"Vecchio."]
+        assert engine._cache == {"paola:neutro:0": b"Nuovo."}

@@ -93,6 +93,8 @@ class TTSEngine:
         # the cache/document lock that long would freeze every request.
         self._piper_lock = threading.Lock()
         self._probe_lock = threading.Lock()
+        # Syntheses running now, by (generation, cache key): later requests join them.
+        self._inflight: dict[tuple[int, str], concurrent.futures.Future] = {}
         self._paragraphs: list[str] = []
         self._filename: str = ""
         self._piper_voice = None
@@ -141,14 +143,10 @@ class TTSEngine:
             raise IndexError(f"Paragrafo {index} fuori range")
 
         cache_key = f"{voice}:{style}:{index}"
-        with self._lock:
-            if cache_key in self._cache:
-                self._cache.move_to_end(cache_key)
-                return self._cache[cache_key]
-
         generation = self._generation
-        mp3_bytes = self._synthesize(index, voice, style)
-        self._put_cache_if_current(cache_key, mp3_bytes, generation)
+        mp3_bytes = self._cached_or_synthesize(
+            cache_key, generation, lambda: self._synthesize(index, voice, style)
+        )
 
         # Prefetch prossimo paragrafo in background
         if index + 1 < len(self._paragraphs):
@@ -173,15 +171,15 @@ class TTSEngine:
             return
         cache_key = f"{voice}:{style}:{index}"
         with self._lock:
-            if cache_key in self._cache:
+            generation = self._generation
+            if cache_key in self._cache or (generation, cache_key) in self._inflight:
                 return
-
-        generation = self._generation
 
         def _do_prefetch():
             try:
-                mp3 = self._synthesize(index, voice, style)
-                self._put_cache_if_current(cache_key, mp3, generation)
+                self._cached_or_synthesize(
+                    cache_key, generation, lambda: self._synthesize(index, voice, style)
+                )
             except Exception:
                 log.warning("Prefetch paragrafo %d fallito", index, exc_info=True)
 
@@ -222,13 +220,42 @@ class TTSEngine:
         (or an IndexError) into the file being saved.
         """
         cache_key = f"{voice}:{style}:{index}"
+        return self._cached_or_synthesize(
+            cache_key, generation, lambda: self._synthesize_text(text, voice, style)
+        )
+
+    def _cached_or_synthesize(
+        self, cache_key: str, generation: int, synthesize: Callable[[], bytes]
+    ) -> bytes:
+        """Cached audio, else join the synthesis already running for it, else run it.
+
+        A request for a paragraph that the prefetch is synthesizing waits for
+        that synthesis instead of sending Edge the same text a second time.
+        """
+        flight_key = (generation, cache_key)
         with self._lock:
             if generation == self._generation and cache_key in self._cache:
                 self._cache.move_to_end(cache_key)
                 return self._cache[cache_key]
-        mp3_bytes = self._synthesize_text(text, voice, style)
-        self._put_cache_if_current(cache_key, mp3_bytes, generation)
-        return mp3_bytes
+            pending = self._inflight.get(flight_key)
+            owner = pending is None
+            if owner:
+                pending = self._inflight[flight_key] = concurrent.futures.Future()
+        if not owner:
+            return pending.result()
+        try:
+            mp3_bytes = synthesize()
+        except BaseException as err:
+            pending.set_exception(err)
+            raise
+        else:
+            # Waiters first: they must never hang on a failure while caching.
+            pending.set_result(mp3_bytes)
+            self._put_cache_if_current(cache_key, mp3_bytes, generation)
+            return mp3_bytes
+        finally:
+            with self._lock:
+                self._inflight.pop(flight_key, None)
 
     def _synthesize(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Sintetizza un paragrafo. Restituisce sempre MP3."""
