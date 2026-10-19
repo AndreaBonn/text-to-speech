@@ -157,12 +157,14 @@ class TestSanitizeFilename:
         assert self._sanitize("nota.txt") == "nota.txt"
         assert self._sanitize("readme.md") == "readme.md"
 
-    def test_doppia_estensione_rifiutata(self):
-        """Filename con double extension sospetta deve essere gestito."""
-        # "file.php.md" contiene il punto nel nome, che è permesso
+    def test_doppia_estensione_accettata(self):
+        """Una doppia estensione è ammessa: decide solo l'ultima, il file non viene mai eseguito."""
         risultato = self._sanitize("file.php.md")
-        # Il regex ammette il punto, quindi passa — è un file .md valido
         assert risultato == "file.php.md"
+
+    def test_doppia_estensione_con_finale_non_supportata_rifiutata(self):
+        """Il caso speculare: conta l'estensione finale, quindi .md.php resta fuori."""
+        assert self._sanitize("file.md.php") == ""
 
 
 # ===========================================================================

@@ -40,9 +40,12 @@ validation before processing any uploaded file:
 **Filename sanitization** (`_sanitize_filename`):
 - Extracts basename via `PurePosixPath().name` — neutralizes path traversal
   (`../../../etc/passwd` becomes `passwd`)
-- Regex whitelist `^[\w\-. ]+({extensions})$` — only word characters, hyphens,
-  dots, spaces, and allowed extensions
-- Rejects filenames with special characters, double extensions, null bytes
+- Regex whitelist `^[\w\-. ()\[\]',+’]+({extensions})$`: word characters, hyphens,
+  dots, spaces, and the punctuation of everyday names (`documento (1).pdf`,
+  `l'arte.epub`); the extension is matched case-insensitively (`Nota.MD`)
+- Rejects filenames with other special characters (`; | $ & < > *`...) and null bytes
+- Double extensions such as `file.php.md` are accepted: only the final extension
+  selects the converter, and an uploaded file is only read as text, never executed
 
 **Extension whitelist**:
 - Only `.md`, `.txt`, `.epub`, `.docx`, `.html`, `.htm`, `.pdf` are accepted

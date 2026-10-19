@@ -40,9 +40,12 @@ validazione prima di elaborare qualsiasi file caricato:
 **Sanitizzazione filename** (`_sanitize_filename`):
 - Estrae il basename tramite `PurePosixPath().name` — neutralizza il path traversal
   (`../../../etc/passwd` diventa `passwd`)
-- Whitelist regex `^[\w\-. ]+({estensioni})$` — accetta solo caratteri alfanumerici,
-  trattini, punti, spazi e le estensioni consentite
-- Rifiuta filename con caratteri speciali, doppie estensioni, null byte
+- Whitelist regex `^[\w\-. ()\[\]',+’]+({estensioni})$`: caratteri alfanumerici,
+  trattini, punti, spazi e la punteggiatura dei nomi comuni (`documento (1).pdf`,
+  `l'arte.epub`); l'estensione si confronta senza distinguere maiuscole (`Nota.MD`)
+- Rifiuta filename con altri caratteri speciali (`; | $ & < > *`...) e null byte
+- Le doppie estensioni come `file.php.md` sono ammesse: il convertitore lo sceglie
+  solo l'estensione finale, e il file caricato viene letto come testo, mai eseguito
 
 **Whitelist estensioni**:
 - Solo `.md`, `.txt`, `.epub`, `.docx`, `.html`, `.htm`, `.pdf` sono accettati
