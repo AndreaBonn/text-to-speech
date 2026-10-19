@@ -15,9 +15,11 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from src.chapters import trova_capitoli, unisci_con_capitoli
 from src.config import DEFAULT_STYLE, EDGE_VOICES, READING_STYLES, VOICE_JSON, VOICE_MODEL
 from src.converters import file_a_testo
 from src.synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
+from src.titles import estrai_titoli
 
 log = logging.getLogger(__name__)
 
@@ -63,15 +65,6 @@ def _wav_to_mp3_bytes(wav_bytes: bytes) -> bytes:
     return result.stdout
 
 
-def _concat_mp3_bytes(mp3_list: list[bytes]) -> bytes:
-    """Concatena una lista di MP3 in un unico file.
-
-    I frame MP3 sono auto-sincronizzanti: la concatenazione
-    diretta dei bytes produce un file valido senza re-encoding.
-    """
-    return b"".join(mp3_list)
-
-
 class EmptyDocumentError(ValueError):
     """Il documento non contiene testo leggibile (file vuoto, PDF solo immagini)."""
 
@@ -96,6 +89,8 @@ class TTSEngine:
         # Syntheses running now, by (generation, cache key): later requests join them.
         self._inflight: dict[tuple[int, str], concurrent.futures.Future] = {}
         self._paragraphs: list[str] = []
+        # (paragraph index, title) for the ID3 chapters of the saved MP3.
+        self._chapters: list[tuple[int, str]] = []
         self._filename: str = ""
         self._piper_voice = None
         self._piper_sample_rate: int = 0
@@ -120,8 +115,10 @@ class TTSEngine:
         nome originale del documento quando ``path`` è un file temporaneo.
         """
         paragraphs = _split_paragraphs(file_a_testo(path))
+        chapters = trova_capitoli(paragrafi=paragraphs, titoli=estrai_titoli(path))
         with self._lock:
             self._paragraphs = paragraphs
+            self._chapters = chapters
             self._generation += 1
             self._filename = display_name or path.name
             self._cache.clear()
@@ -132,6 +129,7 @@ class TTSEngine:
         paragraphs = _split_paragraphs(text)
         with self._lock:
             self._paragraphs = paragraphs
+            self._chapters = []
             self._generation += 1
             self._filename = filename
             self._cache.clear()
@@ -192,12 +190,15 @@ class TTSEngine:
     ) -> bytes:
         """Sintetizza tutti i paragrafi e restituisce MP3 concatenato.
 
+        Se il documento ha titoli, l'MP3 porta un capitolo ID3 per titolo.
+
         Usa uno snapshot della lista paragrafi per evitare corruzione
         se un nuovo file viene caricato durante l'operazione.
         ``on_progress(done, total)`` viene chiamato all'inizio e dopo ogni paragrafo.
         """
         with self._lock:
             snapshot = list(self._paragraphs)
+            chapters = list(self._chapters)
             generation = self._generation
 
         total = len(snapshot)
@@ -207,7 +208,7 @@ class TTSEngine:
         for i, text in enumerate(snapshot):
             all_mp3.append(self._snapshot_audio(i, text, voice, style, generation))
             report(i + 1, total)
-        return _concat_mp3_bytes(all_mp3)
+        return unisci_con_capitoli(segmenti=all_mp3, capitoli=chapters)
 
     def _snapshot_audio(
         self, index: int, text: str, voice: str, style: str, generation: int

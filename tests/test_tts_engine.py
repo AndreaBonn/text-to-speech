@@ -36,53 +36,6 @@ def engine_con_testo(engine):
 
 
 # ===========================================================================
-# Test — _concat_mp3_bytes
-# ===========================================================================
-
-
-class TestConcatMp3Bytes:
-    """Test per la concatenazione MP3 diretta."""
-
-    def test_concatena_due_mp3(self):
-        """Due chunk MP3 devono essere uniti in sequenza."""
-        from src.tts_engine import _concat_mp3_bytes
-
-        # Arrange
-        chunk1 = b"\xff\xfb\x90\x00" + b"\x00" * 100
-        chunk2 = b"\xff\xfb\x90\x00" + b"\x00" * 200
-
-        # Act
-        risultato = _concat_mp3_bytes([chunk1, chunk2])
-
-        # Assert
-        assert risultato == chunk1 + chunk2
-        assert len(risultato) == len(chunk1) + len(chunk2)
-
-    def test_concatena_lista_vuota(self):
-        """Una lista vuota deve restituire bytes vuoti."""
-        from src.tts_engine import _concat_mp3_bytes
-
-        # Act
-        risultato = _concat_mp3_bytes([])
-
-        # Assert
-        assert risultato == b""
-
-    def test_concatena_singolo_elemento(self):
-        """Un singolo chunk deve essere restituito invariato."""
-        from src.tts_engine import _concat_mp3_bytes
-
-        # Arrange
-        chunk = b"\xff\xfb\x90\x00data"
-
-        # Act
-        risultato = _concat_mp3_bytes([chunk])
-
-        # Assert
-        assert risultato == chunk
-
-
-# ===========================================================================
 # Test — TTSEngine.load_file
 # ===========================================================================
 
@@ -118,9 +71,9 @@ class TestTTSEngineLoadFile:
         assert len(engine._cache) == 1
 
         # Act — carica nuovo testo
-        with patch(
-            "src.tts_engine.file_a_testo",
-            return_value="Nuovo testo.",
+        with (
+            patch("src.tts_engine.file_a_testo", return_value="Nuovo testo."),
+            patch("src.tts_engine.estrai_titoli", return_value=[]),
         ):
             engine.load_file(Path("/fake/new.md"))
 
@@ -131,9 +84,9 @@ class TestTTSEngineLoadFile:
     def test_load_file_ignora_paragrafi_vuoti(self, engine):
         """Paragrafi vuoti (solo whitespace) devono essere esclusi."""
         # Arrange
-        with patch(
-            "src.tts_engine.file_a_testo",
-            return_value="Testo.\n\n   \n\n\n\nAltro testo.",
+        with (
+            patch("src.tts_engine.file_a_testo", return_value="Testo.\n\n   \n\n\n\nAltro testo."),
+            patch("src.tts_engine.estrai_titoli", return_value=[]),
         ):
             # Act
             paragrafi = engine.load_file(Path("/fake/test.md"))
@@ -327,6 +280,91 @@ class TestTTSEngineSaveAll:
 
         # Assert
         assert risultato == b""
+
+    def test_save_all_markdown_con_titoli_scrive_capitoli(
+        self, engine, tmp_path, sine_mp3, ffprobe_mp3
+    ):
+        """Un Markdown con tre titoli produce un MP3 con tre capitoli ID3."""
+        # Arrange — ogni paragrafo dura 1 s di sine reale
+        md = tmp_path / "guida.md"
+        md.write_text("# Uno\n\nTesto uno.\n\n## Due\n\nTesto due.\n\n# Tre\n\nTesto tre.\n")
+        engine.load_file(md)
+        segmento = sine_mp3(1.0)
+
+        # Act
+        with patch.object(engine, "_synthesize_text", return_value=segmento):
+            risultato = engine.save_all("giuseppe")
+
+        # Assert
+        info = ffprobe_mp3(risultato)
+        assert info["titoli"] == ["Uno", "Due", "Tre"]
+        assert info["inizi"][0] == 0.0
+        assert info["inizi"][0] < info["inizi"][1] < info["inizi"][2]
+        assert abs(info["fine"] - info["durata"]) <= 0.5
+
+    def test_save_all_pdf_senza_titoli_byte_come_prima(self, engine, tmp_path):
+        """Un PDF non ha titoli: l'MP3 resta la semplice concatenazione, senza ffmpeg."""
+        import pymupdf
+
+        # Arrange
+        pdf_path = tmp_path / "doc.pdf"
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "Testo del PDF.")
+        doc.save(str(pdf_path))
+        doc.close()
+        engine.load_file(pdf_path)
+
+        # Act
+        with (
+            patch.object(engine, "_synthesize_text", return_value=b"chunk"),
+            patch("src.chapters.subprocess.run") as run,
+        ):
+            risultato = engine.save_all("giuseppe")
+
+        # Assert
+        assert risultato == b"chunk" * len(engine.paragraphs)
+        run.assert_not_called()
+
+    def test_save_all_ffmpeg_in_errore_restituisce_l_mp3_senza_capitoli(
+        self, engine, tmp_path, sine_mp3
+    ):
+        """Se ffmpeg/ffprobe falliscono il salvataggio non si perde: MP3 senza capitoli."""
+        import subprocess
+
+        md = tmp_path / "guida.md"
+        md.write_text("# Uno\n\nTesto.\n\n# Due\n\nTesto.\n")
+        engine.load_file(md)
+        segmento = sine_mp3(0.3)
+
+        with (
+            patch.object(engine, "_synthesize_text", return_value=segmento),
+            patch(
+                "src.chapters.subprocess.run",
+                side_effect=subprocess.CalledProcessError(1, "ffprobe"),
+            ),
+        ):
+            risultato = engine.save_all("giuseppe")
+
+        assert risultato == segmento * 4
+
+    def test_save_all_snapshot_dei_capitoli(self, engine, tmp_path, sine_mp3, ffprobe_mp3):
+        """Un testo caricato durante il salvataggio non cambia i capitoli del file in corso."""
+        # Arrange
+        md = tmp_path / "guida.md"
+        md.write_text("# Uno\n\nTesto.\n\n# Due\n\nTesto.\n")
+        engine.load_file(md)
+        segmento = sine_mp3(0.5)
+
+        def sintesi_che_ricarica(testo, voce, stile):
+            engine.load_text("Nuovo documento senza titoli.", "altro.txt")
+            return segmento
+
+        # Act
+        with patch.object(engine, "_synthesize_text", side_effect=sintesi_che_ricarica):
+            risultato = engine.save_all("giuseppe")
+
+        # Assert
+        assert ffprobe_mp3(risultato)["titoli"] == ["Uno", "Due"]
 
 
 # ===========================================================================
