@@ -379,6 +379,86 @@ body {
   border-left-color: transparent;
 }
 
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.reader-card--empty {
+  cursor: pointer;
+  border: 2px dashed var(--border-hover);
+  transition: border-color var(--duration) var(--ease-out),
+              background-color var(--duration) var(--ease-out);
+}
+
+.reader-card--empty:hover,
+.reader-card.is-dragover {
+  border-color: var(--accent);
+  background-color: rgba(212, 145, 92, 0.04);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  min-height: 44px;
+  background-color: var(--accent);
+  color: #141210;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration) var(--ease-out);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-primary:focus-visible,
+#file-input:focus-visible + .btn-file {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-hover);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.steps__n {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  color: #141210;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .empty-icon {
   color: var(--text-dim);
   opacity: 0.4;
@@ -419,6 +499,23 @@ body {
   border-top: 1px solid var(--border);
   padding: 14px 20px 18px;
   flex-shrink: 0;
+}
+
+/* Senza documento la barra mostra solo una riga di spiegazione (A7) */
+.bottom-bar__idle {
+  display: none;
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.bottom-bar--idle .bottom-bar__idle {
+  display: block;
+}
+
+.bottom-bar--idle > :not(.bottom-bar__idle) {
+  display: none;
 }
 
 /* Progress */

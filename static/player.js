@@ -51,6 +51,9 @@ class TtsPlayer {
       voiceSelect:     document.getElementById('voice-select'),
       styleSelect:     document.getElementById('style-select'),
       fileInput:       document.getElementById('file-input'),
+      btnChoose:       document.getElementById('btn-choose'),
+      readerArea:      document.getElementById('reader-area'),
+      bottomBar:       document.getElementById('bottom-bar'),
       fileName:        document.getElementById('file-name'),
       btnSave:         document.getElementById('btn-save'),
     };
@@ -118,12 +121,11 @@ class TtsPlayer {
     /* File input */
     this._dom.fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (!file) return;
-      this._dom.fileName.textContent = file.name;
-      const fd = new FormData();
-      fd.append('file', file);
-      this.loadFile(fd);
+      if (file) this._loadPickedFile(file);
+      e.target.value = '';
     });
+    this._dom.btnChoose.addEventListener('click', () => this._dom.fileInput.click());
+    this._bindDropZone();
 
     /* Voice select */
     this._dom.voiceSelect.addEventListener('change', () => this._applyVoiceChange());
@@ -190,6 +192,41 @@ class TtsPlayer {
     });
   }
 
+  /** Trascinamento di un file su tutta l'area di lettura (A1). */
+  _bindDropZone() {
+    const area = this._dom.readerArea;
+    const card = this._dom.readerCard;
+    const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    area.addEventListener('dragover', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      card.classList.add('is-dragover');
+    });
+    area.addEventListener('dragleave', (e) => {
+      if (!area.contains(e.relatedTarget)) card.classList.remove('is-dragover');
+    });
+    area.addEventListener('drop', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      card.classList.remove('is-dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) this._loadPickedFile(file);
+    });
+    /* Clic sul riquadro vuoto: stessa azione del bottone */
+    card.addEventListener('click', (e) => {
+      if (card.classList.contains('reader-card--empty') && !e.target.closest('button')) {
+        this._dom.fileInput.click();
+      }
+    });
+  }
+
+  _loadPickedFile(file) {
+    this._dom.fileName.textContent = file.name;
+    const fd = new FormData();
+    fd.append('file', file);
+    this.loadFile(fd);
+  }
+
   /* ----------------------------------------------------------
      API PUBBLICA
   ---------------------------------------------------------- */
@@ -223,6 +260,7 @@ class TtsPlayer {
       this._dom.paragraphText.classList.remove('hidden');
       this._dom.readerCard.classList.remove('reader-card--empty');
       this._dom.btnSave.classList.remove('hidden');
+      this._dom.bottomBar.classList.remove('bottom-bar--idle');
       this._updateSaveLink();
       this.updateUI();
 

@@ -118,8 +118,8 @@
   ============================================================ -->
   <main class="reader-area" id="reader-area" role="main">
     <div class="reader-card reader-card--empty" id="reader-card">
-      <!-- Stato iniziale vuoto -->
-      <div id="empty-state">
+      <!-- Stato iniziale vuoto: tutto il riquadro accetta un file trascinato -->
+      <div id="empty-state" class="empty-state">
         <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
              stroke-linejoin="round" aria-hidden="true">
@@ -127,10 +127,22 @@
           <polyline points="14 2 14 8 20 8"/>
           <line x1="16" y1="13" x2="8" y2="13"/>
           <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
         </svg>
-        <p class="empty-title" data-i18n="empty.title">Carica un file per iniziare</p>
-        <p class="empty-sub" data-i18n="empty.formats">MD, TXT, EPUB, DOCX, HTML, PDF</p>
+        <p class="empty-title" data-i18n="empty.drop">Trascina qui un documento, oppure</p>
+        <button type="button" id="btn-choose" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span data-i18n="empty.choose">Scegli un file dal computer</span>
+        </button>
+        <p class="empty-sub" data-i18n="empty.formats">Documenti Word e PDF, libri EPUB, pagine web, file di testo</p>
+        <ol class="steps" data-i18n-aria-label="steps.aria">
+          <li><span class="steps__n" aria-hidden="true">1</span><span data-i18n="steps.load">Carica il testo</span></li>
+          <li><span class="steps__n" aria-hidden="true">2</span><span data-i18n="steps.voice">Scegli la voce</span></li>
+          <li><span class="steps__n" aria-hidden="true">3</span><span data-i18n="steps.listen">Premi Ascolta</span></li>
+        </ol>
       </div>
 
       <!-- Paragrafo attivo (nascosto inizialmente) -->
@@ -146,7 +158,8 @@
   <!-- ============================================================
        BARRA INFERIORE: PROGRESS + CONTROLS
   ============================================================ -->
-  <footer class="bottom-bar" role="contentinfo">
+  <footer class="bottom-bar bottom-bar--idle" id="bottom-bar" role="contentinfo">
+    <p class="bottom-bar__idle" data-i18n="player.idle">I comandi per ascoltare compaiono qui appena carichi un testo.</p>
 
     <!-- Progress bar -->
     <div class="progress-section">

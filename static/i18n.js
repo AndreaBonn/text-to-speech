@@ -23,8 +23,14 @@ const I18N_TRANSLATIONS = {
     'toolbar.saveTitle':        'Scarica l\'intero testo come MP3',
 
     /* Empty state */
-    'empty.title':              'Carica un file per iniziare',
-    'empty.formats':            'MD, TXT, EPUB, DOCX, HTML, PDF',
+    'empty.drop':               'Trascina qui un documento, oppure',
+    'empty.choose':             'Scegli un file dal computer',
+    'empty.formats':            'Documenti Word e PDF, libri EPUB, pagine web, file di testo',
+    'steps.aria':               'Come si usa',
+    'steps.load':               'Carica il testo',
+    'steps.voice':              'Scegli la voce',
+    'steps.listen':             'Premi Ascolta',
+    'player.idle':              'I comandi per ascoltare compaiono qui appena carichi un testo.',
 
     /* Error banner */
     'error.closeAria':          'Chiudi messaggio di errore',
@@ -97,8 +103,14 @@ const I18N_TRANSLATIONS = {
     'toolbar.saveTitle':        'Download the entire text as MP3',
 
     /* Empty state */
-    'empty.title':              'Load a file to start',
-    'empty.formats':            'MD, TXT, EPUB, DOCX, HTML, PDF',
+    'empty.drop':               'Drop a document here, or',
+    'empty.choose':             'Choose a file from your computer',
+    'empty.formats':            'Word and PDF documents, EPUB books, web pages, text files',
+    'steps.aria':               'How it works',
+    'steps.load':               'Load the text',
+    'steps.voice':              'Choose the voice',
+    'steps.listen':             'Press Listen',
+    'player.idle':              'The listening controls appear here as soon as you load a text.',
 
     /* Error banner */
     'error.closeAria':          'Close error message',
