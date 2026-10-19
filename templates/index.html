@@ -151,6 +151,11 @@
        AREA DI LETTURA
   ============================================================ -->
   <main class="reader-area" id="reader-area" role="main">
+    <div class="resume-note hidden" id="resume-note" role="status">
+      <span id="resume-text"></span>
+      <button type="button" class="btn-secondary" id="btn-resume" data-i18n="resume.go">Riprendi da qui</button>
+      <button type="button" class="btn-link" id="btn-resume-start" data-i18n="resume.start">Dall'inizio</button>
+    </div>
     <div class="doc-head hidden" id="doc-head">
       <h1 class="doc-title" id="doc-title"></h1>
       <p class="doc-meta" id="doc-meta"></p>
@@ -327,6 +332,7 @@
   <script src="{{ url_for('static', filename='voice-panel.js') }}"></script>
   <script src="{{ url_for('static', filename='notices.js') }}"></script>
   <script src="{{ url_for('static', filename='reader-view.js') }}"></script>
+  <script src="{{ url_for('static', filename='resume.js') }}"></script>
   <script src="{{ url_for('static', filename='save-mp3.js') }}"></script>
   <script src="{{ url_for('static', filename='player.js') }}"></script>
 

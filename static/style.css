@@ -780,6 +780,26 @@ body {
   border-left-color: var(--accent);
 }
 
+/* Riprendi da dove eri rimasto (R5) */
+.resume-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  width: 100%;
+  max-width: 780px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background-color: var(--elevated);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.resume-note.hidden {
+  display: none;
+}
+
 /* Titolo e durata (R2) */
 .doc-head {
   width: 100%;

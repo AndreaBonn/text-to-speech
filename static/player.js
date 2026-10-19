@@ -77,6 +77,7 @@ class TtsPlayer {
     this._dom.styleSelect = this._panel.styles;
     this._previewAudio = new Audio();
     this._reader = new ReaderView(this._dom.readerText, (idx) => this._playFrom(idx));
+    this._resume = new ResumeNote((idx) => this._playFrom(idx));
 
     this._bindUI();
     /* Ogni richiesta audio aspetta la lista voci: senza, partirebbe con voice='' */
@@ -293,6 +294,12 @@ class TtsPlayer {
       /* Abilita controlli */
       this._setControlsEnabled(true);
 
+      /* Stesso documento aperto in passato: proponi di riprendere (R5) */
+      this._docKey = ResumeStore.keyFor(data.filename, data.total);
+      const saved = ResumeStore.load(this._docKey);
+      if (saved > 0 && saved < data.total) this._resume.show(saved, data.total);
+      else this._resume.hide();
+
       /* Avvia prefetch del primo paragrafo (non riproduce) */
       this.prefetchNext(-1);
 
@@ -408,6 +415,8 @@ class TtsPlayer {
     const para = this.paragraphs[this.currentIdx];
 
     if (para) this._reader.highlight(this.currentIdx);
+    /* Lo 0 non si salva qui: cancellerebbe la posizione proposta da riprendere */
+    if (this._docKey && this.currentIdx > 0) ResumeStore.save(this._docKey, this.currentIdx);
 
     /* Contatore */
     if (this.totalCount) {
@@ -501,7 +510,8 @@ class TtsPlayer {
       this.updateUI();
       this._loadAndPlay(this.currentIdx);
     } else {
-      /* Fine testo */
+      /* Fine testo: la prossima volta si riparte dall'inizio */
+      if (this._docKey) ResumeStore.save(this._docKey, 0);
       this._setState('idle');
       this.updateUI();
     }
