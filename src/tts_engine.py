@@ -61,6 +61,17 @@ def _concat_mp3_bytes(mp3_list: list[bytes]) -> bytes:
     return b"".join(mp3_list)
 
 
+class EmptyDocumentError(ValueError):
+    """Il documento non contiene testo leggibile (file vuoto, PDF solo immagini)."""
+
+
+def _split_paragraphs(text: str) -> list[str]:
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if not paragraphs:
+        raise EmptyDocumentError("no readable text")
+    return paragraphs
+
+
 class TTSEngine:
     """Gestisce sintesi, cache e prefetch per la web UI."""
 
@@ -85,8 +96,7 @@ class TTSEngine:
 
         Supporta: .md, .txt, .epub, .docx, .html, .htm, .pdf
         """
-        testo = file_a_testo(path)
-        paragraphs = [p.strip() for p in testo.split("\n\n") if p.strip()]
+        paragraphs = _split_paragraphs(file_a_testo(path))
         with self._lock:
             self._paragraphs = paragraphs
             self._filename = path.name
@@ -95,7 +105,7 @@ class TTSEngine:
 
     def load_text(self, text: str, filename: str) -> list[str]:
         """Carica testo raw e restituisce la lista di paragrafi."""
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        paragraphs = _split_paragraphs(text)
         with self._lock:
             self._paragraphs = paragraphs
             self._filename = filename

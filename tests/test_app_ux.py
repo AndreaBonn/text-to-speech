@@ -35,3 +35,31 @@ class TestLoadFileNames:
 
         assert response.status_code == 400
         assert "Formato non supportato" in response.get_json()["error"]
+
+
+class TestLoadUnreadableFile:
+    def test_load_corrupted_pdf_returns_readable_json_error(self, client):
+        response = _upload(client, "rotto.pdf", b"non sono un pdf")
+
+        assert response.status_code == 422
+        error = response.get_json()["error"]
+        assert "Non riesco ad aprire" in error
+
+
+class TestLoadFileWithoutText:
+    def test_load_empty_file_explains_there_is_no_text(self, client):
+        response = _upload(client, "vuoto.txt", b"")
+
+        assert response.status_code == 422
+        assert "non ho trovato testo" in response.get_json()["error"]
+
+    def test_load_whitespace_only_file_explains_there_is_no_text(self, client):
+        response = _upload(client, "spazi.txt", b"   \n\n  \n")
+
+        assert response.status_code == 422
+
+    def test_load_file_with_text_still_succeeds(self, client):
+        response = _upload(client, "ok.txt", b"Una riga.")
+
+        assert response.status_code == 200
+        assert response.get_json()["total"] == 1

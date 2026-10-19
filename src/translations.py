@@ -17,6 +17,15 @@ TRANSLATIONS = {
         "error.no_file_loaded": "Nessun file caricato",
         "error.paragraph_not_found": "Paragrafo {idx} non esiste",
         "error.synthesis_failed": "Errore durante la sintesi audio",
+        "error.unreadable_file": (
+            "Non riesco ad aprire questo file. Potrebbe essere danneggiato o protetto "
+            "da password: prova ad aprirlo e salvarlo di nuovo."
+        ),
+        "error.no_text": (
+            "In questo file non ho trovato testo da leggere. Se è un PDF ottenuto da una "
+            "scansione contiene solo immagini: serve prima un programma di "
+            "riconoscimento del testo."
+        ),
         "styles": {
             "neutro": {
                 "label": "Neutro",
@@ -49,6 +58,14 @@ TRANSLATIONS = {
         "error.no_file_loaded": "No file loaded",
         "error.paragraph_not_found": "Paragraph {idx} does not exist",
         "error.synthesis_failed": "Audio synthesis error",
+        "error.unreadable_file": (
+            "I can't open this file. It may be damaged or password protected: "
+            "try opening it and saving it again."
+        ),
+        "error.no_text": (
+            "I found no text to read in this file. If it is a scanned PDF it only contains "
+            "images: run it through a text recognition program first."
+        ),
         "styles": {
             "neutro": {
                 "label": "Neutral",

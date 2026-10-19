@@ -27,7 +27,7 @@ from src.config import (
 )
 from src.converters import SUPPORTED_EXTENSIONS
 from src.translations import get_lang, get_styles_meta, tr
-from src.tts_engine import TTSEngine
+from src.tts_engine import EmptyDocumentError, TTSEngine
 
 # Flask deve cercare templates/ e static/ nella root del progetto
 template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
@@ -149,6 +149,13 @@ def api_load():
 
     try:
         paragraphs = engine.load_file(tmp_path)
+    except EmptyDocumentError:
+        return jsonify({"error": tr(lang, "error.no_text")}), 422
+    except Exception:
+        # Converters raise library-specific errors (pymupdf, ebooklib, docx):
+        # whatever the cause, the user needs one readable message, not a 500 page.
+        log.exception("Conversione fallita per %s", safe_name)
+        return jsonify({"error": tr(lang, "error.unreadable_file")}), 422
     finally:
         tmp_path.unlink(missing_ok=True)
 
