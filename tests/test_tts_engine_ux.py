@@ -400,3 +400,33 @@ class TestEdgeTimeoutCancelsSynthesis:
 
         assert started.is_set()
         assert cancelled.wait(5)
+
+
+class TestConcurrentOnlineProbe:
+    """R6: pages opened together share one online probe instead of one each."""
+
+    def test_concurrent_checks_run_a_single_probe(self, engine):
+        entered, release = threading.Event(), threading.Event()
+        probes = []
+
+        def slow_probe(text, voice, style="neutro", timeout=None):
+            probes.append(voice)
+            entered.set()
+            assert release.wait(5)
+            return b"mp3"
+
+        results = []
+        with patch.object(engine, "_synthesize_text", side_effect=slow_probe):
+            first = threading.Thread(target=lambda: results.append(engine.is_online_available()))
+            first.start()
+            assert entered.wait(5)
+            second = threading.Thread(target=lambda: results.append(engine.is_online_available()))
+            second.start()
+            second.join(timeout=1)
+
+            release.set()
+            first.join(5)
+            second.join(5)
+
+        assert len(probes) == 1
+        assert results == [True, True]

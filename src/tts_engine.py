@@ -92,6 +92,7 @@ class TTSEngine:
         # Separate from _lock: the first Piper use downloads ~60 MB, and holding
         # the cache/document lock that long would freeze every request.
         self._piper_lock = threading.Lock()
+        self._probe_lock = threading.Lock()
         self._paragraphs: list[str] = []
         self._filename: str = ""
         self._piper_voice = None
@@ -268,19 +269,24 @@ class TTSEngine:
         return _wav_to_mp3_bytes(wav_bytes)
 
     def is_online_available(self) -> bool:
-        """Verifica (con cache) che le voci online rispondano."""
-        now = time.monotonic()
-        ttl = ONLINE_PROBE_TTL_S if self._online_ok else ONLINE_PROBE_FAILURE_TTL_S
-        if self._online_checked_at is not None and now - self._online_checked_at < ttl:
-            return self._online_ok
-        try:
-            self._synthesize_text("ok", ONLINE_PROBE_VOICE, timeout=ONLINE_PROBE_TIMEOUT_S)
-            ok = True
-        except Exception:
-            log.warning("Voci online non raggiungibili", exc_info=True)
-            ok = False
-        self._online_ok, self._online_checked_at = ok, now
-        return ok
+        """Verifica (con cache) che le voci online rispondano.
+
+        Una sola verifica alla volta: chi arriva durante la verifica aspetta e
+        riusa il risultato appena salvato, invece di lanciarne un'altra.
+        """
+        with self._probe_lock:
+            now = time.monotonic()
+            ttl = ONLINE_PROBE_TTL_S if self._online_ok else ONLINE_PROBE_FAILURE_TTL_S
+            if self._online_checked_at is not None and now - self._online_checked_at < ttl:
+                return self._online_ok
+            try:
+                self._synthesize_text("ok", ONLINE_PROBE_VOICE, timeout=ONLINE_PROBE_TIMEOUT_S)
+                ok = True
+            except Exception:
+                log.warning("Voci online non raggiungibili", exc_info=True)
+                ok = False
+            self._online_ok, self._online_checked_at = ok, now
+            return ok
 
     def _load_piper(self):
         """Carica il modello Piper una sola volta (thread-safe)."""
