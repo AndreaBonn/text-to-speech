@@ -178,7 +178,7 @@ class TestTTSEngineCache:
         engine_con_testo._put_cache("giuseppe:neutro:2", b"mp3_2")
 
         # Act — accedi al primo elemento (dovrebbe spostarlo in fondo)
-        with patch.object(engine_con_testo, "_synthesize", return_value=b"mp3_0"):
+        with patch.object(engine_con_testo, "_synthesize_text", return_value=b"mp3_0"):
             engine_con_testo.get_audio(0, "giuseppe")
 
         # Assert — "giuseppe:neutro:0" deve essere l'ultimo (MRU)
@@ -200,7 +200,7 @@ class TestTTSEngineCache:
 
 
 # ===========================================================================
-# Test — TTSEngine._synthesize
+# Test — TTSEngine._synthesize_text
 # ===========================================================================
 
 
@@ -223,7 +223,9 @@ class TestTTSEngineSynthesize:
             mock_rcs.side_effect = consuma_coroutine
 
             # Act
-            risultato = engine_con_testo._synthesize(0, "giuseppe")
+            risultato = engine_con_testo._synthesize_text(
+                engine_con_testo.paragraphs[0], "giuseppe"
+            )
 
         # Assert
         mock_rcs.assert_called_once()
@@ -246,7 +248,7 @@ class TestTTSEngineSynthesize:
             patch("src.tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
         ):
             # Act
-            risultato = engine_con_testo._synthesize(0, "paola")
+            risultato = engine_con_testo._synthesize_text(engine_con_testo.paragraphs[0], "paola")
 
         # Assert
         mock_load.assert_called_once()
@@ -266,7 +268,7 @@ class TestTTSEngineSynthesize:
             patch.object(engine_con_testo, "_load_piper") as mock_load,
         ):
             # Act
-            engine_con_testo._synthesize(0, "paola")
+            engine_con_testo._synthesize_text(engine_con_testo.paragraphs[0], "paola")
 
         # Assert — _load_piper NON deve essere chiamato
         mock_load.assert_not_called()
@@ -314,7 +316,7 @@ class TestTTSEngineSaveAll:
             # Act
             risultato = engine_con_testo.save_all("giuseppe")
 
-        # Assert — _synthesize chiamato solo per paragrafi 1 e 2 (non 0)
+        # Assert — _synthesize_text chiamato solo per paragrafi 1 e 2 (non 0)
         assert call_count == 2
         assert risultato == b"cached_0synth_1synth_2"
 
@@ -349,7 +351,7 @@ class TestTTSEnginePrefetch:
         try:
             with (
                 patch("src.tts_engine._executor", executor),
-                patch.object(engine_con_testo, "_synthesize", side_effect=sintesi_lenta),
+                patch.object(engine_con_testo, "_synthesize_text", side_effect=sintesi_lenta),
             ):
                 # Act
                 pending = engine_con_testo.prefetch(0, "giuseppe")
@@ -385,7 +387,7 @@ class TestTTSEnginePrefetch:
     def test_prefetch_ignora_indice_fuori_range(self, engine_con_testo, executor_finto):
         """Indici fuori range non sintetizzano né sottomettono nulla."""
         # Act
-        with patch.object(engine_con_testo, "_synthesize") as mock_synth:
+        with patch.object(engine_con_testo, "_synthesize_text") as mock_synth:
             risultati = [
                 engine_con_testo.prefetch(-1, "giuseppe"),
                 engine_con_testo.prefetch(3, "giuseppe"),  # 3 paragrafi: ultimo indice valido 2
@@ -407,7 +409,7 @@ class TestTTSEnginePrefetch:
         fake_mp3 = b"prefetched_mp3"
 
         with (
-            patch.object(engine_con_testo, "_synthesize", return_value=fake_mp3),
+            patch.object(engine_con_testo, "_synthesize_text", return_value=fake_mp3),
             patch("src.tts_engine._executor") as mock_exec,
         ):
             # Esegui il task sincrono (elimina race condition da CI)
@@ -432,7 +434,7 @@ class TestTTSEngineGetAudioIntegration:
         """get_audio deve lanciare il prefetch del paragrafo successivo."""
         # Arrange
         with (
-            patch.object(engine_con_testo, "_synthesize", return_value=b"mp3"),
+            patch.object(engine_con_testo, "_synthesize_text", return_value=b"mp3"),
             patch.object(engine_con_testo, "prefetch") as mock_prefetch,
         ):
             # Act
@@ -447,7 +449,7 @@ class TestTTSEngineGetAudioIntegration:
         ultimo_idx = len(engine_con_testo.paragraphs) - 1
 
         with (
-            patch.object(engine_con_testo, "_synthesize", return_value=b"mp3"),
+            patch.object(engine_con_testo, "_synthesize_text", return_value=b"mp3"),
             patch.object(engine_con_testo, "prefetch") as mock_prefetch,
         ):
             # Act
@@ -463,7 +465,7 @@ class TestTTSEngineGetAudioIntegration:
         def fake_synth(idx, voice, style):
             return f"mp3_{voice}".encode()
 
-        with patch.object(engine_con_testo, "_synthesize", side_effect=fake_synth):
+        with patch.object(engine_con_testo, "_synthesize_text", side_effect=fake_synth):
             # Act
             audio_g = engine_con_testo.get_audio(0, "giuseppe")
             audio_i = engine_con_testo.get_audio(0, "isabella")
@@ -571,26 +573,6 @@ class TestWavToMp3Bytes:
         ):
             # Act
             _wav_to_mp3_bytes(fake_wav)
-
-
-# ===========================================================================
-# Test — TTSEngine._synthesize (race condition)
-# ===========================================================================
-
-
-class TestSynthesizeRaceCondition:
-    """Test per il path di IndexError durante la sintesi (race condition)."""
-
-    def test_synthesize_index_fuori_range_durante_sintesi(self, engine):
-        """Se i paragrafi vengono azzerati tra il check in get_audio e l'acquisizione
-        del lock in _synthesize, deve essere sollevato IndexError."""
-        # Arrange — carica un paragrafo, poi simula la race condition svuotando la lista
-        engine.load_text("Solo un paragrafo.", "test.md")
-        engine._paragraphs = []  # race: azzerato prima che _synthesize acquisisca il lock
-
-        # Act & Assert
-        with pytest.raises(IndexError, match="fuori range"):
-            engine._synthesize(0, "giuseppe")
 
 
 # ===========================================================================

@@ -293,16 +293,16 @@ class TestTTSEngine:
         assert paragrafi[1] == "Altro paragrafo."
 
     def test_engine_cache_hit(self, engine):
-        """get_audio deve usare la cache e non chiamare _synthesize due volte."""
+        """get_audio deve usare la cache e non chiamare _synthesize_text due volte."""
         # Arrange
         engine.load_text("Paragrafo di test.", "test.md")
         fake_mp3 = b"ID3\x00fake_mp3_content"
 
-        with patch.object(engine, "_synthesize", return_value=fake_mp3) as mock_synth:
+        with patch.object(engine, "_synthesize_text", return_value=fake_mp3) as mock_synth:
             # Act — prima chiamata: sintesi + inserimento cache
             risultato_1 = engine.get_audio(0, "giuseppe")
 
-            # Resetto il mock per verificare che la seconda chiamata NON chiami _synthesize
+            # Resetto il mock per verificare che la seconda chiamata NON chiami _synthesize_text
             mock_synth.reset_mock()
 
             # Act — seconda chiamata: deve usare la cache
@@ -311,7 +311,7 @@ class TestTTSEngine:
         # Assert
         assert risultato_1 == fake_mp3
         assert risultato_2 == fake_mp3
-        # La seconda chiamata NON deve aver invocato _synthesize
+        # La seconda chiamata NON deve aver invocato _synthesize_text
         mock_synth.assert_not_called()
 
     def test_engine_index_out_of_range(self, engine):
@@ -339,10 +339,10 @@ class TestTTSEngine:
         mp3_giuseppe = b"mp3_giuseppe"
         mp3_isabella = b"mp3_isabella"
 
-        def fake_synthesize(index, voice, style):
+        def fake_synthesize(text, voice, style):
             return mp3_giuseppe if voice == "giuseppe" else mp3_isabella
 
-        with patch.object(engine, "_synthesize", side_effect=fake_synthesize):
+        with patch.object(engine, "_synthesize_text", side_effect=fake_synthesize):
             # Act
             audio_giuseppe = engine.get_audio(0, "giuseppe")
             audio_isabella = engine.get_audio(0, "isabella")
@@ -354,13 +354,13 @@ class TestTTSEngine:
 
 
 # ===========================================================================
-# Test — TTSEngine._synthesize
+# Test — TTSEngine._synthesize_text
 # ===========================================================================
 
 
 class TestSynthesize:
     def test_synthesize_edge_uses_async_loop(self, engine):
-        """_synthesize con voce Edge deve usare run_coroutine_threadsafe."""
+        """_synthesize_text con voce Edge deve usare run_coroutine_threadsafe."""
         # Arrange
         engine.load_text("Testo di test.", "test.md")
         fake_mp3 = b"ID3\x00fake_edge_mp3"
@@ -378,7 +378,7 @@ class TestSynthesize:
             side_effect=fake_run_coroutine_threadsafe,
         ) as mock_rcs:
             # Act
-            result = engine._synthesize(0, "giuseppe")
+            result = engine._synthesize_text(engine.paragraphs[0], "giuseppe")
 
         # Assert
         assert result == fake_mp3
@@ -390,7 +390,7 @@ class TestSynthesize:
         mock_future.result.assert_called_once_with(timeout=60)
 
     def test_synthesize_piper_loads_model_lazy(self, engine):
-        """_synthesize con voce Piper deve caricare il modello e convertire WAV in MP3."""
+        """_synthesize_text con voce Piper deve caricare il modello e convertire WAV in MP3."""
         # Arrange
         engine.load_text("Testo Piper.", "test.md")
         fake_wav = b"RIFF\x00\x00fake_wav"
@@ -402,7 +402,7 @@ class TestSynthesize:
             patch("src.tts_engine._wav_to_mp3_bytes", return_value=fake_mp3),
         ):
             # Act
-            result = engine._synthesize(0, "paola")
+            result = engine._synthesize_text(engine.paragraphs[0], "paola")
 
         # Assert
         assert result == fake_mp3
@@ -452,7 +452,7 @@ class TestPrefetchLogging:
         warned = threading.Event()
 
         with (
-            patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")),
+            patch.object(engine, "_synthesize_text", side_effect=RuntimeError("boom")),
             patch("src.tts_engine.log") as mock_log,
         ):
             mock_log.warning.side_effect = lambda *args, **kwargs: warned.set()

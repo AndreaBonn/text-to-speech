@@ -139,13 +139,10 @@ class TTSEngine:
 
     def get_audio(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
         """Restituisce MP3 bytes per il paragrafo. Usa cache se disponibile."""
-        if index < 0 or index >= len(self._paragraphs):
-            raise IndexError(f"Paragrafo {index} fuori range")
-
+        text, generation = self._paragraph_at(index)
         cache_key = f"{voice}:{style}:{index}"
-        generation = self._generation
         mp3_bytes = self._cached_or_synthesize(
-            cache_key, generation, lambda: self._synthesize(index, voice, style)
+            cache_key, generation, lambda: self._synthesize_text(text, voice, style)
         )
 
         # Prefetch prossimo paragrafo in background
@@ -167,18 +164,20 @@ class TTSEngine:
 
     def prefetch(self, index: int, voice: str, style: str = DEFAULT_STYLE):
         """Lancia sintesi del paragrafo in background (thread pool)."""
-        if index < 0 or index >= len(self._paragraphs):
-            return
         cache_key = f"{voice}:{style}:{index}"
         with self._lock:
+            # Range checked under the lock: a load may shorten the document.
+            if index < 0 or index >= len(self._paragraphs):
+                return
             generation = self._generation
             if cache_key in self._cache or (generation, cache_key) in self._inflight:
                 return
+            text = self._paragraphs[index]
 
         def _do_prefetch():
             try:
                 self._cached_or_synthesize(
-                    cache_key, generation, lambda: self._synthesize(index, voice, style)
+                    cache_key, generation, lambda: self._synthesize_text(text, voice, style)
                 )
             except Exception:
                 log.warning("Prefetch paragrafo %d fallito", index, exc_info=True)
@@ -257,13 +256,16 @@ class TTSEngine:
             with self._lock:
                 self._inflight.pop(flight_key, None)
 
-    def _synthesize(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:
-        """Sintetizza un paragrafo. Restituisce sempre MP3."""
+    def _paragraph_at(self, index: int) -> tuple[str, int]:
+        """Text of a paragraph and the generation it belongs to, read together.
+
+        Read in two lock sections, a load in between paired the new document's
+        text with the old generation (or the reverse) for that request.
+        """
         with self._lock:
             if index < 0 or index >= len(self._paragraphs):
-                raise IndexError(f"Paragrafo {index} fuori range (durante sintesi)")
-            text = self._paragraphs[index]
-        return self._synthesize_text(text, voice, style)
+                raise IndexError(f"Paragrafo {index} fuori range")
+            return self._paragraphs[index], self._generation
 
     def _synthesize_text(
         self,
