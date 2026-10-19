@@ -824,6 +824,50 @@ class TestVerificaPrerequisiti:
         assert "Nessun player" not in captured.out
         assert "Nessun player" not in captured.err
 
+    @staticmethod
+    def _which_linux(*presenti):
+        def which(name):
+            if name in ("aplay", "ffplay"):
+                return f"/usr/bin/{name}" if name in presenti else None
+            return "/usr/bin/found"
+
+        return which
+
+    def _output_linux(self, capsys, *presenti):
+        from src.config import verifica_prerequisiti
+
+        with (
+            patch("src.config.PLATFORM", "linux"),
+            patch("src.config.shutil.which", side_effect=self._which_linux(*presenti)),
+        ):
+            errori = verifica_prerequisiti(modalita="cli")
+
+        assert errori == []
+        return capsys.readouterr().out
+
+    def test_linux_solo_aplay_avvisa_che_le_voci_online_non_si_ascoltano(self, capsys):
+        """aplay riproduce solo WAV (Piper): le voci Edge, MP3 e predefinite, restano mute."""
+        out = self._output_linux(capsys, "aplay")
+
+        assert "voci online" in out
+        assert "--voice paola" in out
+        assert "ffplay" in out
+        assert "Nessun player audio" not in out
+
+    @pytest.mark.parametrize("presenti", [("ffplay",), ("aplay", "ffplay")])
+    def test_linux_con_ffplay_nessun_avviso_sul_player(self, capsys, presenti):
+        out = self._output_linux(capsys, *presenti)
+
+        assert "voci online" not in out
+        assert "Nessun player audio" not in out
+        assert "pandoc" not in out  # pandoc presente: nessun altro avviso
+
+    def test_linux_senza_player_avvisa_che_la_riproduzione_non_funziona(self, capsys):
+        out = self._output_linux(capsys)
+
+        assert "Nessun player audio trovato" in out
+        assert "voci online" not in out
+
     def test_win32_senza_ffplay_stampa_warning(self, capsys):
         """Su win32 CLI, senza ffplay, deve stampare warning player."""
         from src.config import verifica_prerequisiti

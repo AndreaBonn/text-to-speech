@@ -117,6 +117,26 @@ def suggerisci_installazione(pacchetto: str) -> str:
     return comandi.get(pacchetto, f"Installa '{pacchetto}' con il package manager del tuo sistema")
 
 
+def _verifica_player_cli() -> None:
+    """Avvisa se manca un player, o se c'è solo aplay (solo WAV, niente voci online)."""
+    installa = f"Installa ffmpeg (include ffplay):\n         {suggerisci_installazione('ffmpeg')}"
+    if PLATFORM == "darwin":
+        ha_player = bool(shutil.which("afplay") or shutil.which("ffplay"))
+    elif PLATFORM == "win32":
+        ha_player = bool(shutil.which("ffplay"))
+    else:
+        ha_aplay, ha_ffplay = shutil.which("aplay"), shutil.which("ffplay")
+        ha_player = bool(ha_aplay or ha_ffplay)
+        if ha_aplay and not ha_ffplay:
+            # aplay plays WAV only: Piper works, the default Edge voices (MP3) do not.
+            warn("Trovato solo aplay: legge la voce offline (--voice paola), non le voci online.")
+            warn(installa)
+
+    if not ha_player:
+        warn("Nessun player audio trovato. La riproduzione non funzionerà.")
+        warn(installa)
+
+
 def verifica_prerequisiti(modalita: str = "cli") -> list[str]:
     """Verifica le dipendenze di sistema e stampa warning/errori.
 
@@ -140,19 +160,7 @@ def verifica_prerequisiti(modalita: str = "cli") -> list[str]:
 
     # Player audio: rilevante solo per CLI
     if modalita == "cli":
-        ha_player = False
-        if PLATFORM == "darwin":
-            ha_player = bool(shutil.which("afplay") or shutil.which("ffplay"))
-        elif PLATFORM == "win32":
-            ha_player = bool(shutil.which("ffplay"))
-        else:
-            ha_player = bool(shutil.which("aplay") or shutil.which("ffplay"))
-
-        if not ha_player:
-            warn("Nessun player audio trovato. La riproduzione non funzionerà.")
-            warn(
-                f"Installa ffmpeg (include ffplay):\n         {suggerisci_installazione('ffmpeg')}"
-            )
+        _verifica_player_cli()
 
     # pandoc: opzionale
     if not shutil.which("pandoc"):
