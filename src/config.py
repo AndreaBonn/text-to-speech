@@ -9,7 +9,8 @@ from pathlib import Path
 
 # ─── Directory di progetto ───────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+# config.py lives in src/: the project root (with data/) is one level up.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_INPUT = PROJECT_ROOT / "data" / "input"
 DATA_OUTPUT = PROJECT_ROOT / "data" / "output"
 

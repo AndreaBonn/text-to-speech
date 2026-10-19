@@ -4,6 +4,8 @@ Tabelle di configurazione dichiarate nel README: stili di lettura (velocità, to
 e stile suggerito per estensione. Gli oracoli sono scritti a mano dal README.
 """
 
+from pathlib import Path
+
 import pytest
 
 from src.config import DEFAULT_STYLE, FILE_STYLE_DEFAULTS, READING_STYLES
@@ -47,3 +49,19 @@ class TestFileStyleDefaults:
 
     def test_ogni_estensione_suggerisce_uno_stile_esistente(self):
         assert set(FILE_STYLE_DEFAULTS.values()) <= set(READING_STYLES)
+
+
+class TestDataDirectories:
+    """README: la CLI salva in data/output/<nome_file>/ nella root del progetto."""
+
+    def test_data_output_e_nella_root_del_progetto(self):
+        from src.config import DATA_OUTPUT
+
+        root = Path(__file__).resolve().parent.parent
+        assert root / "data" / "output" == DATA_OUTPUT
+
+    def test_data_input_e_nella_root_del_progetto(self):
+        from src.config import DATA_INPUT
+
+        root = Path(__file__).resolve().parent.parent
+        assert root / "data" / "input" == DATA_INPUT
