@@ -57,3 +57,25 @@ class TestSaveProgress:
             engine.save_all("paola", on_progress=lambda done, total: steps.append((done, total)))
 
         assert steps == [(0, 3), (1, 3), (2, 3), (3, 3)]
+
+
+class TestOnlineProbeCacheDuration:
+    def test_failed_probe_is_retried_after_a_short_time(self, engine):
+        with (
+            patch("src.tts_engine.time.monotonic", side_effect=[1000.0, 1031.0]),
+            patch.object(engine, "_synthesize_text", side_effect=[OSError("timeout"), b"mp3"]),
+        ):
+            first = engine.is_online_available()
+            second = engine.is_online_available()
+
+        assert (first, second) == (False, True)
+
+    def test_successful_probe_is_kept_for_minutes(self, engine):
+        with (
+            patch("src.tts_engine.time.monotonic", side_effect=[1000.0, 1031.0]),
+            patch.object(engine, "_synthesize_text", return_value=b"mp3") as synth,
+        ):
+            engine.is_online_available()
+            engine.is_online_available()
+
+        assert synth.call_count == 1

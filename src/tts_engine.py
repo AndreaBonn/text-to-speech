@@ -29,6 +29,9 @@ SYNTHESIS_TIMEOUT_S = 60
 # The online check runs on page load: short timeout, result reused for a few minutes.
 ONLINE_PROBE_TIMEOUT_S = 8
 ONLINE_PROBE_TTL_S = 300
+# A failed check is retried soon: one network hiccup must not switch every page
+# load to the offline voice for minutes (observed once during testing).
+ONLINE_PROBE_FAILURE_TTL_S = 30
 ONLINE_PROBE_VOICE = next(iter(EDGE_VOICES))
 _executor = ThreadPoolExecutor(max_workers=2)
 
@@ -230,10 +233,8 @@ class TTSEngine:
     def is_online_available(self) -> bool:
         """Verifica (con cache) che le voci online rispondano."""
         now = time.monotonic()
-        if (
-            self._online_checked_at is not None
-            and now - self._online_checked_at < ONLINE_PROBE_TTL_S
-        ):
+        ttl = ONLINE_PROBE_TTL_S if self._online_ok else ONLINE_PROBE_FAILURE_TTL_S
+        if self._online_checked_at is not None and now - self._online_checked_at < ttl:
             return self._online_ok
         try:
             self._synthesize_text("ok", ONLINE_PROBE_VOICE, timeout=ONLINE_PROBE_TIMEOUT_S)
