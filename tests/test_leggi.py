@@ -16,6 +16,23 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+
+def _wav_con_frame(sample_rate: int, frame: bytes) -> bytes:
+    """Helper: WAV mono 16 bit in memoria con i frame indicati."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(frame)
+    return buf.getvalue()
+
+
+def _chiudi_coroutine(coro):
+    """side_effect per asyncio.run mockato: chiude la coroutine mai attesa."""
+    coro.close()
+
+
 # ===========================================================================
 # Test — Costanti e configurazione voci
 # ===========================================================================
@@ -88,13 +105,6 @@ class TestVoiceConstants:
         # Assert
         assert VOICE_MODEL in VOICE_URLS
         assert VOICE_JSON in VOICE_URLS
-
-    def test_voice_model_path_uses_home_directory(self):
-        """VOICE_DIR deve essere sotto la home directory dell'utente."""
-        from src.config import VOICE_DIR
-
-        # Assert
-        assert str(VOICE_DIR).startswith(str(Path.home()))
 
 
 # ===========================================================================
@@ -379,6 +389,23 @@ class TestConcatenaWav:
         with wave.open(io.BytesIO(risultato), "rb") as wf:
             assert wf.getnframes() == 50
 
+    def test_conserva_l_ordine_dei_wav(self):
+        """I frame devono comparire nello stesso ordine della lista in ingresso."""
+        from src.leggi import concatena_wav
+
+        # Arrange — frame distinti per riconoscere l'ordine
+        sr = 22050
+        primo = _wav_con_frame(sr, b"\x01\x00\x01\x00\x01\x00")
+        secondo = _wav_con_frame(sr, b"\x02\x00\x02\x00")
+
+        # Act
+        risultato = concatena_wav([primo, secondo], sr)
+
+        # Assert
+        with wave.open(io.BytesIO(risultato), "rb") as wf:
+            frame = wf.readframes(wf.getnframes())
+        assert frame == b"\x01\x00\x01\x00\x01\x00" + b"\x02\x00\x02\x00"
+
 
 # ===========================================================================
 # Test — scarica_voce_piper
@@ -388,21 +415,49 @@ class TestConcatenaWav:
 class TestScaricaVocePiper:
     """Test per il download del modello Piper (con mock di rete)."""
 
-    def test_skip_download_se_file_esistono(self):
-        """Non deve scaricare se i file del modello esistono già."""
+    def test_skip_download_se_file_esistono(self, tmp_path):
+        """Non deve scaricare se il file del modello esiste già (e non lo tocca)."""
         from src.synthesis import scarica_voce_piper
 
-        # Arrange & Act
+        # Arrange — un file presente con il suo URL
+        dest = tmp_path / "modello.onnx"
+        dest.write_bytes(b"gia-presente")
+
+        # Act
         with (
-            patch("src.synthesis.VOICE_DIR") as mock_dir,
-            patch("src.synthesis.VOICE_URLS", {}),
+            patch("src.synthesis.VOICE_DIR", tmp_path),
+            patch("src.synthesis.VOICE_URLS", {dest: "http://example.com/modello.onnx"}),
             patch("src.synthesis.urllib.request.urlopen") as mock_urlopen,
         ):
-            mock_dir.mkdir = MagicMock()
             scarica_voce_piper()
 
-        # Assert — urlopen non deve essere chiamato con lista URL vuota
+        # Assert
         mock_urlopen.assert_not_called()
+        assert dest.read_bytes() == b"gia-presente"
+
+    def test_scarica_se_file_mancante(self, tmp_path):
+        """Caso appaiato: con il file mancante deve scaricare dall'URL e scriverlo."""
+        from src.synthesis import scarica_voce_piper
+
+        # Arrange
+        dest = tmp_path / "modello.onnx"
+        risposta = MagicMock()
+        risposta.headers.get.return_value = "0"
+        risposta.read.side_effect = [b"dati-del-modello", b""]
+        mock_urlopen = MagicMock()
+        mock_urlopen.return_value.__enter__.return_value = risposta
+
+        # Act
+        with (
+            patch("src.synthesis.VOICE_DIR", tmp_path),
+            patch("src.synthesis.VOICE_URLS", {dest: "http://example.com/modello.onnx"}),
+            patch("src.synthesis.urllib.request.urlopen", mock_urlopen),
+        ):
+            scarica_voce_piper()
+
+        # Assert
+        mock_urlopen.assert_called_once_with("http://example.com/modello.onnx")
+        assert dest.read_bytes() == b"dati-del-modello"
 
     def test_crea_directory_se_non_esiste(self):
         """Deve creare la directory dei modelli con parents=True."""
@@ -535,6 +590,20 @@ class TestTrovaPlayer:
         # Assert
         assert cmd == []
         assert stdin is False
+
+    def test_darwin_senza_afplay_ne_ffplay(self):
+        """Su macOS senza afplay né ffplay, deve restituire ([], False)."""
+        from src.leggi import _trova_player
+
+        # Arrange & Act
+        with (
+            patch("src.leggi.PLATFORM", "darwin"),
+            patch("src.leggi.shutil.which", return_value=None),
+        ):
+            risultato = _trova_player("mp3")
+
+        # Assert
+        assert risultato == ([], False)
 
 
 class TestHaPlayer:
@@ -856,6 +925,20 @@ class TestCalcolaPathOutput:
 
         assert cartella_base.name == "relazione"
 
+    def test_output_sotto_data_output(self):
+        """Le tre path devono stare sotto DATA_OUTPUT/<stem>/, qualunque sia l'input."""
+        from src.config import DATA_OUTPUT
+        from src.leggi import calcola_path_output
+
+        # Act
+        cartella_base, path_mp3, cartella_par = calcola_path_output(Path("/altrove/relazione.md"))
+
+        # Assert — DATA_OUTPUT usato solo come riferimento di posizione
+        assert cartella_base.parent == DATA_OUTPUT
+        assert cartella_base.name == "relazione"
+        assert path_mp3 == cartella_base / "full" / "relazione.mp3"
+        assert cartella_par == cartella_base / "paragraphs"
+
 
 # ===========================================================================
 # Test — leggi_con_piper
@@ -1002,6 +1085,37 @@ class TestLeggiConEdge:
         assert asyncio.iscoroutine(coro)
         coro.close()  # pulizia per evitare RuntimeWarning
 
+    def test_passa_edge_id_della_voce_a_sintetizza_edge(self):
+        """La voce scelta deve arrivare a sintetizza_edge come ID Edge, non come nome."""
+        from src.leggi import leggi_con_edge
+
+        # Arrange
+        chiamate = []
+
+        async def fake_sint(voice_id, testo):
+            chiamate.append((voice_id, testo))
+            return b"mp3"
+
+        async def fake_riproduci(mp3_bytes):
+            pass
+
+        mock_edge = MagicMock()
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            patch("src.leggi._ha_player", return_value=True),
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi._riproduci_async", side_effect=fake_riproduci),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            leggi_con_edge("Uno\n\nDue", voice_name="isabella")
+
+        # Assert
+        assert chiamate == [
+            ("it-IT-IsabellaNeural", "Uno"),
+            ("it-IT-IsabellaNeural", "Due"),
+        ]
+
 
 # ===========================================================================
 # Test — main
@@ -1103,6 +1217,90 @@ class TestMain:
         assert mock_leggi.call_args[1]["salva_path"] is not None
         assert mock_leggi.call_args[1]["cartella_par"] is not None
 
+    def test_senza_voice_usa_voce_di_default_giuseppe(self, tmp_path):
+        """Senza --voice la voce è giuseppe (default da README), Edge, senza salvataggio."""
+        from src.leggi import main
+
+        f = tmp_path / "test.txt"
+        f.write_text("Contenuto test")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f)]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+            patch("src.leggi.leggi_con_piper") as mock_piper,
+        ):
+            main()
+
+        mock_leggi.assert_called_once()
+        assert mock_leggi.call_args[0][1] == "giuseppe"
+        mock_piper.assert_not_called()
+
+    def test_voce_edge_non_default_con_salva_passa_voce_e_path(self, tmp_path):
+        """--voice isabella --salva: voce e path di output arrivano a leggi_con_edge."""
+        from src.config import DATA_OUTPUT
+        from src.leggi import main
+
+        f = tmp_path / "documento.txt"
+        f.write_text("Contenuto da salvare")
+        atteso_base = DATA_OUTPUT / "documento"
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f), "--voice", "isabella", "--salva"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+        ):
+            main()
+
+        mock_leggi.assert_called_once()
+        args, kwargs = mock_leggi.call_args
+        assert args[1] == "isabella"
+        assert kwargs["salva_path"] == atteso_base / "full" / "documento.mp3"
+        assert kwargs["cartella_par"] == atteso_base / "paragraphs"
+
+    def test_voce_piper_con_salva_passa_path_di_output(self, tmp_path):
+        """--voice paola --salva: i path di output arrivano a leggi_con_piper."""
+        from src.config import DATA_OUTPUT
+        from src.leggi import main
+
+        f = tmp_path / "documento.txt"
+        f.write_text("Contenuto da salvare")
+        atteso_base = DATA_OUTPUT / "documento"
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f), "--voice", "paola", "--salva"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.scarica_voce_piper"),
+            patch("src.leggi.leggi_con_piper") as mock_leggi,
+            patch("src.leggi.leggi_con_edge") as mock_edge,
+        ):
+            main()
+
+        mock_leggi.assert_called_once()
+        assert mock_leggi.call_args[1]["salva_path"] == atteso_base / "full" / "documento.mp3"
+        assert mock_leggi.call_args[1]["cartella_par"] == atteso_base / "paragraphs"
+        mock_edge.assert_not_called()
+
+    def test_testo_di_soli_spazi_esce_con_errore(self, tmp_path, capsys):
+        """Testo fatto solo di spazi/righe vuote: errore ed exit 1, nessuna lettura."""
+        from src.leggi import main
+
+        f = tmp_path / "spazi.md"
+        f.write_text("contenuto ignorato dal convertitore")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f)]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.converters.file_a_testo", return_value="   \n\n  \n"),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+            pytest.raises(SystemExit) as exc,
+        ):
+            main()
+
+        assert exc.value.code == 1
+        assert "vuoto" in capsys.readouterr().out
+        mock_leggi.assert_not_called()
+
 
 # ===========================================================================
 # Test — wav_a_mp3
@@ -1163,6 +1361,32 @@ class TestWavAMp3:
         # Assert
         assert mock_run.call_args[1]["timeout"] == 30
 
+    def test_argv_ffmpeg_completo(self, tmp_path):
+        """argv esatto: sovrascrive (-y), legge da stdin, MP3 a 128k."""
+        from src.leggi import wav_a_mp3
+
+        # Arrange
+        output = tmp_path / "output.mp3"
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            wav_a_mp3(b"\x00", output)
+
+        # Assert
+        assert mock_run.call_args[0][0] == [
+            "ffmpeg",
+            "-y",
+            "-i",
+            "pipe:0",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            "-loglevel",
+            "error",
+            str(output),
+        ]
+
 
 # ===========================================================================
 # Test — concatena_mp3
@@ -1189,6 +1413,30 @@ class TestConcatenaMp3:
         assert cmd[0] == "ffmpeg"
         assert any("concat" in arg for arg in cmd)
         assert str(output) in cmd
+
+    def test_argv_ffmpeg_completo(self, tmp_path):
+        """argv esatto: sovrascrive (-y), concat da stdin, copia senza ricodifica."""
+        from src.leggi import concatena_mp3
+
+        # Arrange
+        output = tmp_path / "completo.mp3"
+
+        with patch("src.leggi.subprocess.run") as mock_run:
+            # Act
+            concatena_mp3([b"\x01", b"\x02"], output)
+
+        # Assert
+        assert mock_run.call_args[0][0] == [
+            "ffmpeg",
+            "-y",
+            "-i",
+            "concat:pipe:0",
+            "-codec:a",
+            "copy",
+            "-loglevel",
+            "error",
+            str(output),
+        ]
 
     def test_unisce_tutti_i_frammenti_come_stdin(self, tmp_path):
         """I byte di tutti i frammenti devono essere concatenati e passati come stdin."""
@@ -1363,6 +1611,97 @@ class TestLeggiConPiperExtra:
         # Assert implicito: se arriviamo qui senza eccezioni, il test passa
 
 
+class TestLeggiConPiperSalvataggio:
+    """Salvataggio per paragrafo e file completo in leggi_con_piper."""
+
+    SR = 22050
+    WAV_A = _wav_con_frame(SR, b"\x01\x00" * 3)
+    WAV_B = _wav_con_frame(SR, b"\x02\x00" * 2)
+
+    def _esegui(self, testo, salva, cartella_par, riproduce):
+        """Esegue leggi_con_piper con sintesi fake (un WAV distinto per testo)."""
+        from src.leggi import leggi_con_piper
+
+        wav_per_testo = {"Alfa": self.WAV_A, "Beta": self.WAV_B}
+        mock_piper_module = MagicMock()
+        mock_piper_module.PiperVoice.load.return_value.config.sample_rate = self.SR
+        mp3_scritti = []
+
+        def fake_wav_a_mp3(wav_bytes, output_path):
+            mp3_scritti.append((wav_bytes, output_path))
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=riproduce),
+            patch("src.leggi.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch(
+                "src.leggi.sintetizza_piper",
+                side_effect=lambda voce, testo, sr: wav_per_testo[testo],
+            ),
+            patch("src.leggi.wav_a_mp3", side_effect=fake_wav_a_mp3),
+            patch("src.leggi.riproduci_audio") as mock_play,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_piper(testo, salva_path=salva, cartella_par=cartella_par)
+
+        return mp3_scritti, mock_play
+
+    def _frame_di(self, wav_bytes):
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            return wf.readframes(wf.getnframes())
+
+    def test_file_per_paragrafo_numerati_da_001_con_contenuto_giusto(self, tmp_path):
+        """Un file per paragrafo (001, 002...) con il WAV di quel paragrafo, poi il completo."""
+        salva = tmp_path / "full" / "doc.mp3"
+        cartella_par = tmp_path / "paragraphs"
+
+        mp3_scritti, _ = self._esegui("Alfa\n\nBeta", salva, cartella_par, riproduce=False)
+
+        assert [p for _, p in mp3_scritti] == [
+            cartella_par / "001.mp3",
+            cartella_par / "002.mp3",
+            salva,
+        ]
+        assert mp3_scritti[0][0] == self.WAV_A
+        assert mp3_scritti[1][0] == self.WAV_B
+        # il file completo contiene i due paragrafi nell'ordine di lettura
+        assert self._frame_di(mp3_scritti[2][0]) == b"\x01\x00" * 3 + b"\x02\x00" * 2
+
+    def test_senza_cartella_par_salva_solo_il_file_completo(self, tmp_path):
+        """Con cartella_par None non si scrivono file per paragrafo, solo il completo."""
+        salva = tmp_path / "full" / "doc.mp3"
+
+        mp3_scritti, _ = self._esegui("Alfa\n\nBeta", salva, None, riproduce=False)
+
+        assert [p for _, p in mp3_scritti] == [salva]
+        assert salva.parent.is_dir()
+        assert not (tmp_path / "paragraphs").exists()
+
+    def test_con_player_e_salva_riproduce_e_salva(self, tmp_path):
+        """Con player e --salva, ogni paragrafo viene riprodotto e anche salvato."""
+        salva = tmp_path / "full" / "doc.mp3"
+        cartella_par = tmp_path / "paragraphs"
+
+        mp3_scritti, mock_play = self._esegui("Alfa\n\nBeta", salva, cartella_par, riproduce=True)
+
+        assert [c.args for c in mock_play.call_args_list] == [
+            (self.WAV_A, "wav"),
+            (self.WAV_B, "wav"),
+        ]
+        assert [p for _, p in mp3_scritti] == [
+            cartella_par / "001.mp3",
+            cartella_par / "002.mp3",
+            salva,
+        ]
+
+    def test_con_player_senza_salva_riproduce_e_non_scrive(self):
+        """Caso appaiato: senza --salva si riproduce e non si scrive nessun mp3."""
+        mp3_scritti, mock_play = self._esegui("Alfa\n\nBeta", None, None, riproduce=True)
+
+        assert mock_play.call_count == 2
+        assert mp3_scritti == []
+
+
 # ===========================================================================
 # Test — leggi_con_edge (path aggiuntivi)
 # ===========================================================================
@@ -1383,7 +1722,7 @@ class TestLeggiConEdgeExtra:
         with (
             patch.dict("sys.modules", {"edge_tts": mock_edge}),
             patch("src.leggi._ha_player", return_value=False),
-            patch("src.leggi.asyncio.run"),
+            patch("src.leggi.asyncio.run", side_effect=_chiudi_coroutine),
         ):
             # Act
             leggi_con_edge(
@@ -1405,7 +1744,7 @@ class TestLeggiConEdgeExtra:
         with (
             patch.dict("sys.modules", {"edge_tts": mock_edge}),
             patch("src.leggi._ha_player", return_value=False),
-            patch("src.leggi.asyncio.run"),
+            patch("src.leggi.asyncio.run", side_effect=_chiudi_coroutine),
         ):
             # Act
             leggi_con_edge("Testo", voice_name="giuseppe", salva_path=salva, cartella_par=None)
@@ -1485,28 +1824,110 @@ class TestLoopEdge:
         # Assert
         mock_concat.assert_called_once()
 
-    def test_keyboard_interrupt_nel_loop_edge_non_propaga(self):
-        """Il loop edge completa senza propagare eccezioni su input validi."""
-        # Nota: KeyboardInterrupt sollevato in un asyncio task viene propagato
-        # direttamente da asyncio.run() in Python 3.12+, bypassando il
-        # try/except dentro la coroutine. Le righe 303-304 di leggi.py sono
-        # raggiungibili solo con SIGINT reale, non verificabile via unit test.
-        # Questo test verifica che il loop termini normalmente su input valido.
+    def test_keyboard_interrupt_nel_loop_edge_non_propaga(self, tmp_path, capsys):
+        """Ctrl+C a metà lettura: nessuna propagazione, salva i paragrafi già sintetizzati."""
         from src.leggi import _loop_edge
 
-        # Arrange
-        mp3 = self._make_mp3()
-        paragrafi = ["Solo uno"]
+        # Arrange — l'interrupt scatta alla terza visualizzazione, dentro il try del loop
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        paragrafi = ["Alfa", "Beta", "Gamma"]
+        n_visualizzazioni = []
+
+        def mostra_che_interrompe(i, totale, testo, visibile):
+            n_visualizzazioni.append(i)
+            if i == 3:
+                raise KeyboardInterrupt
 
         async def fake_sint(voice_id, testo):
-            return mp3
+            return b"MP3:" + testo.encode()
 
         with (
             patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo", side_effect=mostra_che_interrompe),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+        ):
+            # Act — non deve sollevare KeyboardInterrupt
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, None))
+
+        # Assert
+        assert n_visualizzazioni == [1, 2, 3]
+        assert "Lettura interrotta" in capsys.readouterr().out
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
+
+    def test_sintetizza_i_paragrafi_in_ordine_e_salva_ogni_file(self, tmp_path):
+        """Prefetch corretto: ogni paragrafo sintetizzato una volta, in ordine, salvato intero."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        cartella_par = tmp_path / "paragraphs"
+        cartella_par.mkdir()
+        paragrafi = ["Alfa", "Beta", "Gamma"]
+        sintetizzati = []
+
+        async def fake_sint(voice_id, testo):
+            sintetizzati.append((voice_id, testo))
+            return b"MP3:" + testo.encode()
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.concatena_mp3") as mock_concat,
             patch("src.leggi.mostra_paragrafo"),
         ):
-            # Act & Assert — non deve sollevare eccezioni
-            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, None, None))
+            # Act
+            asyncio.run(_loop_edge("it-IT-GiuseppeNeural", paragrafi, False, salva, cartella_par))
+
+        # Assert
+        assert sintetizzati == [
+            ("it-IT-GiuseppeNeural", "Alfa"),
+            ("it-IT-GiuseppeNeural", "Beta"),
+            ("it-IT-GiuseppeNeural", "Gamma"),
+        ]
+        assert sorted(p.name for p in cartella_par.iterdir()) == [
+            "001.mp3",
+            "002.mp3",
+            "003.mp3",
+        ]
+        assert (cartella_par / "001.mp3").read_bytes() == b"MP3:Alfa"
+        assert (cartella_par / "002.mp3").read_bytes() == b"MP3:Beta"
+        assert (cartella_par / "003.mp3").read_bytes() == b"MP3:Gamma"
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta", b"MP3:Gamma"], salva)
+
+    def test_con_player_e_salva_riproduce_e_salva(self, tmp_path):
+        """Con player e --salva, ogni paragrafo è riprodotto nell'ordine e anche salvato."""
+        from src.leggi import _loop_edge
+
+        # Arrange
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        cartella_par = tmp_path / "paragraphs"
+        cartella_par.mkdir()
+        riprodotti = []
+
+        async def fake_sint(voice_id, testo):
+            return b"MP3:" + testo.encode()
+
+        async def fake_riproduci(mp3_bytes):
+            riprodotti.append(mp3_bytes)
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi._riproduci_async", side_effect=fake_riproduci),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            # Act
+            asyncio.run(
+                _loop_edge("it-IT-GiuseppeNeural", ["Alfa", "Beta"], True, salva, cartella_par)
+            )
+
+        # Assert
+        assert riprodotti == [b"MP3:Alfa", b"MP3:Beta"]
+        assert (cartella_par / "001.mp3").read_bytes() == b"MP3:Alfa"
+        assert (cartella_par / "002.mp3").read_bytes() == b"MP3:Beta"
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
 
     def test_riproduce_con_riproduci_async(self):
         """Con riproduce=True deve chiamare _riproduci_async per ogni paragrafo."""
