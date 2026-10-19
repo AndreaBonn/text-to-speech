@@ -316,8 +316,10 @@ class TtsPlayer {
     if (!this.totalCount) return;
     if (this._state === 'playing') return;
 
-    /* Se in pausa, riprendi semplicemente */
-    if (this._state === 'paused' && this._audio.src && !this._audio.ended) {
+    /* In pausa riprendi solo se l'audio caricato è ancora quello giusto:
+       dopo un salto, un clic su un paragrafo o un cambio voce va risintetizzato */
+    const sameAudio = this._loadedKey === this._audioKey(this.currentIdx);
+    if (this._state === 'paused' && sameAudio && this._audio.src && !this._audio.ended) {
       this._audio.play().catch(() => this._loadAndPlay(this.currentIdx));
       return;
     }
@@ -370,6 +372,10 @@ class TtsPlayer {
     this.currentIdx = idx;
     this.updateUI();
     if (wasPlaying) await this._loadAndPlay(this.currentIdx);
+  }
+
+  _audioKey(idx) {
+    return `${idx}|${this.currentVoice}|${this.currentStyle}`;
   }
 
   /** Clic su un paragrafo del testo: legge da lì (R1) */
@@ -479,6 +485,7 @@ class TtsPlayer {
       }
 
       this._audio.src = audioSrc;
+      this._loadedKey = this._audioKey(idx);
       this._applySpeed();
       await this._audio.play();
 
