@@ -65,11 +65,12 @@ class TtsPlayer {
     this._notices = new Notices();
 
     this._bindUI();
-    this._loadVoices();
+    /* Ogni richiesta audio aspetta la lista voci: senza, partirebbe con voice='' */
+    this._voicesReady = this._loadVoices();
 
     /* Ascolta cambio lingua per ricaricare stili e aggiornare UI */
     document.addEventListener('i18n:changed', () => {
-      this._loadVoices();
+      this._voicesReady = this._loadVoices();
       this.updateUI();
     });
   }
@@ -387,6 +388,7 @@ class TtsPlayer {
     if (this._prefetchIdx === nextIdx) return; /* gia' in cache */
 
     try {
+      await this._voicesReady;
       const url = `/api/audio/${nextIdx}?voice=${encodeURIComponent(this.currentVoice)}&style=${encodeURIComponent(this.currentStyle)}`;
       const res = await fetch(url);
       if (!res.ok) return;
@@ -452,6 +454,7 @@ class TtsPlayer {
     this._setPlayIconLoading(true);
 
     try {
+      await this._voicesReady;
       let audioSrc;
 
       /* Usa prefetch blob se disponibile per questo indice */
@@ -643,6 +646,7 @@ class TtsPlayer {
   }
 
   async _handleSave() {
+    await this._voicesReady;
     const voice = this._dom.btnSave.dataset.voice;
     const style = this._dom.btnSave.dataset.style;
     if (!voice) return;
