@@ -460,7 +460,7 @@ class TestScaricaVocePiper:
             scarica_voce_piper()
 
         # Assert
-        mock_urlopen.assert_called_once_with("http://example.com/modello.onnx")
+        mock_urlopen.assert_called_once_with("http://example.com/modello.onnx", timeout=30)
         assert dest.read_bytes() == b"dati-del-modello"
 
     def test_crea_directory_se_non_esiste(self):

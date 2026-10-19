@@ -7,8 +7,11 @@ Non deve mai chiamare sys.exit() — gli errori sono segnalati tramite eccezioni
 """
 
 import io
+import os
+import tempfile
 import urllib.request
 import wave
+from pathlib import Path
 
 from src.config import (
     VOICE_DIR,
@@ -17,6 +20,41 @@ from src.config import (
     info,
     warn,
 )
+
+# Seconds without data before a stalled model download fails (per socket
+# operation, not for the whole ~60 MB transfer).
+DOWNLOAD_TIMEOUT_S = 30
+_CHUNK_BYTES = 1024 * 64
+
+
+def _scarica_file(url: str, dest) -> None:
+    """Scarica ``url`` su ``dest`` passando da un file ``.part``.
+
+    Il file finale compare solo a download completo: un'interruzione non
+    lascia un modello troncato che ``dest.exists()`` darebbe per buono. Il
+    ``.part`` ha un nome unico, perché web e CLI possono scaricare insieme.
+    """
+    fd, nome_parziale = tempfile.mkstemp(dir=dest.parent, prefix=f"{dest.name}.", suffix=".part")
+    parziale = Path(nome_parziale)
+    try:
+        with (
+            os.fdopen(fd, "wb") as f,
+            urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response,  # noqa: S310
+        ):
+            total = int(response.headers.get("Content-Length", 0))
+            scaricati = 0
+            while chunk := response.read(_CHUNK_BYTES):
+                f.write(chunk)
+                scaricati += len(chunk)
+                if total:
+                    print(f"\r  {scaricati / total * 100:.1f}%", end="", flush=True)
+        if scaricati == 0:
+            raise OSError("download vuoto: il server non ha inviato dati")
+        if total and scaricati != total:
+            raise OSError(f"download incompleto: {scaricati} di {total} byte")
+        parziale.replace(dest)
+    finally:
+        parziale.unlink(missing_ok=True)
 
 
 def scarica_voce_piper():
@@ -34,17 +72,7 @@ def scarica_voce_piper():
             continue
         warn(f"Scarico {dest.name} ...")
         try:
-            with urllib.request.urlopen(url) as response, open(dest, "wb") as f:  # noqa: S310
-                total = int(response.headers.get("Content-Length", 0))
-                scaricati = 0
-                while True:
-                    chunk = response.read(1024 * 64)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    scaricati += len(chunk)
-                    if total:
-                        print(f"\r  {scaricati / total * 100:.1f}%", end="", flush=True)
+            _scarica_file(url, dest)
             print()
             info(f"{dest.name} scaricato.")
         except Exception as e:

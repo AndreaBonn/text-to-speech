@@ -149,85 +149,87 @@ class TestSintetizzaEdge:
 
 
 class TestScaricaVocePiperDownload:
-    """Test per il download effettivo e la gestione errori."""
+    """Download del modello: file finale solo a download completo, mai troncato."""
 
-    def test_download_effettivo_scrive_file(self):
-        """Deve scaricare e scrivere il file se non esiste."""
-        mock_dest = MagicMock()
-        mock_dest.exists.return_value = False
-        mock_dest.name = "model.onnx"
+    URL = "http://example.com/model.onnx"
 
-        mock_response = MagicMock()
-        mock_response.headers = {"Content-Length": "128"}
-        mock_response.read.side_effect = [b"x" * 64, b"y" * 64, b""]
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+    @staticmethod
+    def _urlopen(chunks, content_length=None):
+        """Fake urlopen: stream dei chunk dati; un'eccezione nella lista viene sollevata."""
+        risposta = MagicMock()
+        risposta.headers = {} if content_length is None else {"Content-Length": str(content_length)}
+        risposta.read.side_effect = [*chunks, b""]
+        fake = MagicMock()
+        fake.return_value.__enter__.return_value = risposta
+        return fake
 
-        mock_file = MagicMock()
-        mock_file.__enter__ = MagicMock(return_value=mock_file)
-        mock_file.__exit__ = MagicMock(return_value=False)
-
+    def _scarica(self, tmp_path, fake_urlopen):
+        dest = tmp_path / "model.onnx"
         with (
-            patch("src.synthesis.VOICE_DIR"),
-            patch(
-                "src.synthesis.VOICE_URLS",
-                {mock_dest: "http://example.com/model.onnx"},
-            ),
-            patch("src.synthesis.urllib.request.urlopen", return_value=mock_response),
-            patch("builtins.open", return_value=mock_file) as mock_open,
+            patch("src.synthesis.VOICE_DIR", tmp_path),
+            patch("src.synthesis.VOICE_URLS", {dest: self.URL}),
+            patch("src.synthesis.urllib.request.urlopen", fake_urlopen),
             patch("builtins.print"),
         ):
             scarica_voce_piper()
+        return dest
 
-        assert [c.args for c in mock_file.write.call_args_list] == [(b"x" * 64,), (b"y" * 64,)]
-        mock_open.assert_called_once_with(mock_dest, "wb")
+    def test_download_completo_scrive_il_file(self, tmp_path):
+        fake = self._urlopen([b"x" * 64, b"y" * 64], content_length=128)
 
-    def test_download_fallito_solleva_runtime_error(self):
-        """Deve sollevare RuntimeError se il download fallisce."""
-        mock_dest = MagicMock()
-        mock_dest.exists.return_value = False
-        mock_dest.name = "model.onnx"
+        dest = self._scarica(tmp_path, fake)
 
-        with (
-            patch("src.synthesis.VOICE_DIR"),
-            patch(
-                "src.synthesis.VOICE_URLS",
-                {mock_dest: "http://example.com/model.onnx"},
-            ),
-            patch(
-                "src.synthesis.urllib.request.urlopen",
-                side_effect=ConnectionError("Network down"),
-            ),
-            pytest.raises(RuntimeError, match="Download voce Piper fallito"),
-        ):
-            scarica_voce_piper()
+        assert dest.read_bytes() == b"x" * 64 + b"y" * 64
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["model.onnx"]
 
-    def test_download_senza_content_length(self):
-        """Deve funzionare anche senza header Content-Length (no progress bar)."""
-        mock_dest = MagicMock()
-        mock_dest.exists.return_value = False
-        mock_dest.name = "model.onnx"
+    def test_download_usa_un_timeout(self, tmp_path):
+        fake = self._urlopen([b"dati"])
 
-        mock_response = MagicMock()
-        mock_response.headers = {}
-        mock_response.read.side_effect = [b"data", b""]
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
+        self._scarica(tmp_path, fake)
 
-        mock_file = MagicMock()
-        mock_file.__enter__ = MagicMock(return_value=mock_file)
-        mock_file.__exit__ = MagicMock(return_value=False)
+        fake.assert_called_once_with(self.URL, timeout=30)
 
-        with (
-            patch("src.synthesis.VOICE_DIR"),
-            patch(
-                "src.synthesis.VOICE_URLS",
-                {mock_dest: "http://example.com/model.onnx"},
-            ),
-            patch("src.synthesis.urllib.request.urlopen", return_value=mock_response),
-            patch("builtins.open", return_value=mock_file),
-            patch("builtins.print"),
-        ):
-            scarica_voce_piper()
+    def test_download_senza_content_length(self, tmp_path):
+        dest = self._scarica(tmp_path, self._urlopen([b"data"]))
 
-        mock_file.write.assert_called_once_with(b"data")
+        assert dest.read_bytes() == b"data"
+
+    def test_connessione_rifiutata_solleva_runtime_error(self, tmp_path):
+        fake = MagicMock(side_effect=ConnectionError("Network down"))
+
+        with pytest.raises(RuntimeError, match="Download voce Piper fallito"):
+            self._scarica(tmp_path, fake)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_interruzione_a_meta_non_lascia_file(self, tmp_path):
+        fake = self._urlopen([b"x" * 64, OSError("connection reset")], content_length=128)
+
+        with pytest.raises(RuntimeError, match="connection reset"):
+            self._scarica(tmp_path, fake)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_download_piu_corto_del_content_length_e_un_errore(self, tmp_path):
+        fake = self._urlopen([b"x" * 64], content_length=128)
+
+        with pytest.raises(RuntimeError, match="64 di 128"):
+            self._scarica(tmp_path, fake)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_risposta_vuota_senza_content_length_e_un_errore(self, tmp_path):
+        with pytest.raises(RuntimeError, match="vuoto"):
+            self._scarica(tmp_path, self._urlopen([]))
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_non_tocca_il_file_parziale_di_un_altro_download(self, tmp_path):
+        """Web e CLI possono scaricare insieme: ognuno usa il proprio file temporaneo."""
+        altrui = tmp_path / "model.onnx.part"
+        altrui.write_bytes(b"download in corso di un altro processo")
+
+        dest = self._scarica(tmp_path, self._urlopen([b"dati"]))
+
+        assert dest.read_bytes() == b"dati"
+        assert altrui.read_bytes() == b"download in corso di un altro processo"
