@@ -8,9 +8,13 @@ const POSITIONS_PREF_KEY = 'tts-reader-positions';
 const MAX_REMEMBERED_DOCS = 30;
 
 class ResumeStore {
-  /** Chiave del documento: stesso nome e stessa lunghezza = stesso documento. */
-  static keyFor(filename, total) {
-    return `${filename}|${total}`;
+  /**
+   * Chiave del documento: nome, numero di paragrafi e impronta del testo.
+   * Senza l'impronta due testi incollati diversi ("Testo incollato") con lo
+   * stesso numero di paragrafi condividerebbero la posizione.
+   */
+  static keyFor(filename, paragraphs) {
+    return `${filename}|${paragraphs.length}|${textFingerprint(paragraphs)}`;
   }
 
   static load(key) {
@@ -23,6 +27,16 @@ class ResumeStore {
     const next = idx > 0 ? [{ key, idx }, ...others] : others;
     savePref(POSITIONS_PREF_KEY, next.slice(0, MAX_REMEMBERED_DOCS));
   }
+}
+
+/** Hash djb2 del testo: identifica il documento, non serve a proteggerlo. */
+function textFingerprint(paragraphs) {
+  let hash = 5381;
+  for (const p of paragraphs) {
+    const text = p.text;
+    for (let i = 0; i < text.length; i++) hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 class ResumeNote {

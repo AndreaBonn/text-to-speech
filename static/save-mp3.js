@@ -5,6 +5,7 @@
 ============================================================ */
 const SAVE_POLL_MS = 1000;
 const SAVE_DONE_VISIBLE_MS = 6000;
+const DOWNLOAD_REVOKE_MS = 30000;
 
 /**
  * Chiede al server l'MP3 completo. Mentre la richiesta è in corso legge
@@ -12,10 +13,12 @@ const SAVE_DONE_VISIBLE_MS = 6000;
  * Restituisce la Response; se ok, anche blob e nome file proposto dal server.
  */
 async function requestMp3(voice, style, onProgress) {
+  let finished = false;
   const poll = setInterval(async () => {
     try {
       const p = await (await fetch('/api/save/progress')).json();
-      if (p.active && p.total) onProgress(p.done, p.total);
+      /* Un giro partito prima della fine non deve riscrivere lo stato finale */
+      if (!finished && p.active && p.total) onProgress(p.done, p.total);
     } catch (_) {
       /* Un giro di polling perso non cambia l'esito: il prossimo aggiorna */
     }
@@ -30,6 +33,7 @@ async function requestMp3(voice, style, onProgress) {
     const blob = await res.blob();
     return { res, blob, filename: filenameFromDisposition(res.headers.get('Content-Disposition')) };
   } finally {
+    finished = true;
     clearInterval(poll);
   }
 }
@@ -53,5 +57,6 @@ function triggerDownload(blob, filename) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  /* Firefox e Safari leggono il blob dopo il click: revocarlo subito tronca il file */
+  setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_REVOKE_MS);
 }

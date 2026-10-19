@@ -89,6 +89,11 @@ class TtsPlayer {
     document.addEventListener('i18n:changed', () => {
       this._voicesReady = this._loadVoices();
       if (this._docSummary) this._showDocSummary(this._docSummary);
+      this._voicesReady.then(() => {
+        if (this._autoStyleNote && this._panel.autoStyleVisible()) {
+          this._panel.showAutoStyle(this._autoStyleNote.style, this._autoStyleNote.ext);
+        }
+      });
       this.updateUI();
     });
   }
@@ -100,7 +105,9 @@ class TtsPlayer {
     try {
       const res  = await fetch(`/api/voices?lang=${i18nGetLang()}`);
       const data = await res.json();
-      const chosen = this._panel.populate(data);
+      /* Al cambio lingua la scelta in corso resta (anche lo stile automatico) */
+      const keep = this.currentVoice ? { voice: this.currentVoice, style: this._dom.styleSelect.value || this.currentStyle } : null;
+      const chosen = this._panel.populate(data, keep);
       this.currentVoice = chosen.voice;
       this.currentStyle = chosen.style;
       this._updateStyleEnabled();
@@ -300,7 +307,7 @@ class TtsPlayer {
       this._setControlsEnabled(true);
 
       /* Stesso documento aperto in passato: proponi di riprendere (R5) */
-      this._docKey = ResumeStore.keyFor(data.filename, data.total);
+      this._docKey = ResumeStore.keyFor(data.filename, data.paragraphs);
       const saved = ResumeStore.load(this._docKey);
       if (saved > 0 && saved < data.total) this._resume.show(saved, data.total);
       else this._resume.hide();
@@ -660,6 +667,7 @@ class TtsPlayer {
     /* Un cambio di stile che nessuno ha chiesto va dichiarato (R11) */
     const ext = (/\.[^.]+$/.exec(filename || '') || [''])[0];
     this._panel.showAutoStyle(suggestedStyle, ext);
+    this._autoStyleNote = { style: suggestedStyle, ext };
   }
 
   /* ----------------------------------------------------------
@@ -754,16 +762,17 @@ class TtsPlayer {
       label: t(labelKey, { voice: option.dataset.name || voice }),
       run: () => {
         this._dom.voiceSelect.value = voice;
-        this._applyVoiceChange();
+        /* Ripiego per un guasto passeggero: non diventa la voce preferita */
+        this._applyVoiceChange({ remember: false });
         retry();
       },
     };
   }
 
-  _applyVoiceChange() {
+  _applyVoiceChange({ remember = true } = {}) {
     this.currentVoice = this._dom.voiceSelect.value;
     this._updateStyleEnabled();
-    this._panel.remember(this.currentVoice, this._dom.styleSelect.value);
+    if (remember) this._panel.remember(this.currentVoice, this._dom.styleSelect.value);
     const name = this._dom.voiceSelect.selectedOptions[0]?.dataset.name || this.currentVoice;
     this._afterVoiceOrStyleChange(t('status.voiceChanged', { voice: name }));
   }
@@ -808,8 +817,9 @@ class TtsPlayer {
       const res = await fetch(`/api/preview?${params}`);
       if (!res.ok) throw await this._apiError(res);
       const url = URL.createObjectURL(await res.blob());
+      if (this._previewUrl) URL.revokeObjectURL(this._previewUrl);
+      this._previewUrl = url;
       this._previewAudio.src = url;
-      this._previewAudio.onended = () => URL.revokeObjectURL(url);
       await this._previewAudio.play();
       this._notices.clear();
     } catch (err) {

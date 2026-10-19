@@ -97,14 +97,17 @@ class VoicePanel {
     if (returnFocus) this._dom.toggle.focus();
   }
 
-  /** Riempie voci e stili; restituisce {voice, style} da usare. */
-  populate(data) {
+  /**
+   * Riempie voci e stili; restituisce {voice, style} da usare.
+   * `keep` = scelta già in corso (cambio lingua): ha la precedenza sulla preferenza salvata.
+   */
+  populate(data, keep = null) {
     this._online = data.online_available !== false;
     this._voices = Object.fromEntries(data.voices.map(v => [v.id, v]));
     this._fillVoices(data.voices);
     this.styles.setOptions(data.styles);
 
-    const pref = loadPref(VOICE_PREF_KEY, {});
+    const pref = keep || loadPref(VOICE_PREF_KEY, {});
     const prefVoice = this._voices[pref.voice];
     const prefUsable = prefVoice && (this._online || prefVoice.type !== 'edge');
     const voice = prefUsable ? pref.voice : data.default;
@@ -172,6 +175,10 @@ class VoicePanel {
   showAutoStyle(styleId, ext) {
     this._dom.autoText.textContent = t('style.auto', { style: this.styles.labelOf(styleId), ext });
     this._dom.autoBar.classList.remove('hidden');
+  }
+
+  autoStyleVisible() {
+    return !this._dom.autoBar.classList.contains('hidden');
   }
 
   hideAutoStyle() {
