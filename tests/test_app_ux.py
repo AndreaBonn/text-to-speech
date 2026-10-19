@@ -252,3 +252,17 @@ class TestSaveProgressEndpoint:
             client.post("/api/save", json={"voice": "giuseppe"})
 
         assert client.get("/api/save/progress").get_json()["active"] is False
+
+    def test_saved_mp3_with_non_latin_name_still_downloads(self, client):
+        _upload(client, "Книга.txt", b"Testo.")
+        with patch("src.app.engine.save_all", return_value=b"mp3"):
+            response = client.post("/api/save", json={"voice": "paola"})
+
+        assert response.status_code == 200
+        assert response.data == b"mp3"
+        header = response.headers["Content-Disposition"]
+        # The HTTP server writes headers as latin-1: a Cyrillic filename= would
+        # crash the response after the whole book has been synthesized.
+        header.encode("latin-1")
+        assert "filename*=UTF-8''%D0%9A%D0%BD%D0%B8%D0%B3%D0%B0.mp3" in header
+        assert 'filename="audio.mp3"' in header

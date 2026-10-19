@@ -308,13 +308,18 @@ def api_save():
     stem = Path(engine.filename).stem
     safe_name = "".join(c for c in f"{stem}.mp3" if c.isalnum() or c in ".-_ ") or "output.mp3"
     encoded_name = quote(safe_name)
+    # Headers go on the wire as latin-1: the plain filename= gets an ASCII copy,
+    # browsers use the full UTF-8 name from filename*.
+    ascii_name = safe_name.encode("ascii", "ignore").decode().strip()
+    if not ascii_name.rsplit(".", 1)[0].strip():
+        ascii_name = "audio.mp3"
 
     return Response(
         mp3_bytes,
         mimetype="audio/mpeg",
         headers={
             "Content-Disposition": (
-                f"attachment; filename=\"{safe_name}\"; filename*=UTF-8''{encoded_name}"
+                f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
             )
         },
     )
