@@ -268,11 +268,15 @@ def leggi_con_edge(
     if riproduce:
         info("Avvio lettura... (Ctrl+C per interrompere)")
 
-    asyncio.run(_loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par))
+    completato = asyncio.run(_loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par))
+    if not completato:
+        sys.exit(1)
 
 
-async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
+async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par) -> bool:
+    """Legge e/o salva i paragrafi con Edge. Restituisce False se la sintesi si è interrotta."""
     tutti_mp3 = []
+    completato = True
     totale = len(paragrafi)
 
     # Prefetch: sintetizza il primo paragrafo subito
@@ -282,8 +286,19 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
         for i, paragrafo in enumerate(paragrafi, 1):
             mostra_paragrafo(i, totale, paragrafo, riproduce)
 
-            # Attendi l'audio (già in prefetch)
-            mp3_bytes = await prossimo
+            # Attendi l'audio (già in prefetch). CLI boundary: edge_tts surfaces
+            # network failures as aiohttp/OSError and an empty stream as
+            # EdgeNoAudioError; any of them ends the reading with a message.
+            try:
+                mp3_bytes = await prossimo
+            except Exception as err:
+                causa = str(err) or type(err).__name__
+                error(
+                    f"Edge TTS non ha risposto al paragrafo {i}/{totale}: {causa}\n"
+                    "         Riprova più tardi o usa la voce offline: --voice paola"
+                )
+                completato = False
+                break
 
             # Lancia prefetch del prossimo paragrafo durante la riproduzione
             if i < totale:
@@ -306,7 +321,11 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par):
     if salva_path and tutti_mp3:
         info("Creo file audio completo...")
         concatena_mp3(tutti_mp3, salva_path)
-        info(f"Salvato: {salva_path} ({len(tutti_mp3)} paragrafi)")
+        quanti = f"{len(tutti_mp3)} paragrafi"
+        if not completato:
+            quanti = f"parziale: {len(tutti_mp3)} di {totale} paragrafi"
+        info(f"Salvato: {salva_path} ({quanti})")
+    return completato
 
 
 async def _riproduci_async(mp3_bytes: bytes):

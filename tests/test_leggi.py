@@ -29,8 +29,12 @@ def _wav_con_frame(sample_rate: int, frame: bytes) -> bytes:
 
 
 def _chiudi_coroutine(coro):
-    """side_effect per asyncio.run mockato: chiude la coroutine mai attesa."""
+    """side_effect per asyncio.run mockato: chiude la coroutine mai attesa.
+
+    Restituisce True come _loop_edge a lettura completata.
+    """
     coro.close()
+    return True
 
 
 # ===========================================================================
@@ -2116,3 +2120,101 @@ class TestRiproduciAsync:
 
         # Assert — il file temp non esiste più
         assert not fake_tmp.exists()
+
+
+class TestLoopEdgeErroreSintesi:
+    """Edge che fallisce a metà lettura: messaggio leggibile, salvato ciò che c'è, exit 1."""
+
+    def test_errore_a_meta_salva_i_paragrafi_gia_pronti(self, tmp_path, capsys):
+        from src.leggi import _loop_edge
+        from src.synthesis import EdgeNoAudioError
+
+        salva = tmp_path / "full" / "output.mp3"
+        salva.parent.mkdir(parents=True)
+        cartella_par = tmp_path / "paragraphs"
+        cartella_par.mkdir()
+
+        async def fake_sint(voice_id, testo):
+            if testo == "Beta":
+                raise EdgeNoAudioError("Edge TTS returned no audio")
+            return b"MP3:" + testo.encode()
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo") as mock_mostra,
+            patch("src.leggi.concatena_mp3") as mock_concat,
+        ):
+            completato = asyncio.run(
+                _loop_edge(
+                    "it-IT-GiuseppeNeural", ["Alfa", "Beta", "Gamma"], False, salva, cartella_par
+                )
+            )
+
+        out = capsys.readouterr().out
+        assert completato is False
+        assert "paragrafo 2/3" in out
+        assert "--voice paola" in out
+        assert out.count("[ERRORE]") == 1
+        assert "parziale: 1 di 3 paragrafi" in out
+        assert [chiamata.args[0] for chiamata in mock_mostra.call_args_list] == [1, 2]
+        assert sorted(p.name for p in cartella_par.iterdir()) == ["001.mp3"]
+        mock_concat.assert_called_once_with([b"MP3:Alfa"], salva)
+
+    def test_lettura_completa_restituisce_true(self, tmp_path):
+        from src.leggi import _loop_edge
+
+        salva = tmp_path / "output.mp3"
+
+        async def fake_sint(voice_id, testo):
+            return b"MP3:" + testo.encode()
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+        ):
+            completato = asyncio.run(
+                _loop_edge("it-IT-GiuseppeNeural", ["Alfa", "Beta"], False, salva, None)
+            )
+
+        assert completato is True
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
+
+    def test_errore_di_rete_sul_primo_paragrafo_esce_con_1_senza_file(self, tmp_path, capsys):
+        from src.leggi import leggi_con_edge
+
+        salva = tmp_path / "full" / "output.mp3"
+
+        async def fake_sint(voice_id, testo):
+            raise OSError("Cannot connect to host speech.platform.bing.com")
+
+        with (
+            patch.dict("sys.modules", {"edge_tts": MagicMock()}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+            patch("src.leggi.concatena_mp3") as mock_concat,
+            pytest.raises(SystemExit) as uscita,
+        ):
+            leggi_con_edge("Uno\n\nDue", voice_name="giuseppe", salva_path=salva)
+
+        assert uscita.value.code == 1
+        assert "paragrafo 1/2" in capsys.readouterr().out
+        mock_concat.assert_not_called()
+
+    def test_timeout_senza_messaggio_mostra_il_tipo_di_errore(self, tmp_path, capsys):
+        from src.leggi import _loop_edge
+
+        async def fake_sint(voice_id, testo):
+            raise TimeoutError
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            completato = asyncio.run(
+                _loop_edge("it-IT-GiuseppeNeural", ["Alfa"], False, None, None)
+            )
+
+        assert completato is False
+        assert "paragrafo 1/1: TimeoutError" in capsys.readouterr().out
