@@ -798,4 +798,5 @@ class TtsPlayer {
    BOOTSTRAP
 ============================================================ */
 i18nInit();
+const displayPrefs = new DisplayPrefs();
 const player = new TtsPlayer();

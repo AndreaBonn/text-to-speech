@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='theme-init.js') }}"></script>
 </head>
 <body>
 
@@ -63,11 +64,17 @@
       <span data-i18n="toolbar.saveBtn">Salva MP3</span>
     </button>
 
-    <!-- Language switcher -->
-    <div class="lang-switcher" role="group" data-i18n-aria-label="toolbar.langAria">
-      <span class="lang-label" aria-hidden="true" data-i18n="toolbar.lang">Lingua dei menu</span>
-      <button class="lang-btn lang-btn--active" data-lang="it" aria-pressed="true">IT</button>
-      <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
+    <div class="toolbar__end">
+      <!-- Tema chiaro a scelta (S3) -->
+      <button type="button" id="btn-theme" class="btn-theme" aria-pressed="false"
+              data-i18n="toolbar.lightTheme">Tema chiaro</button>
+
+      <!-- Language switcher -->
+      <div class="lang-switcher" role="group" data-i18n-aria-label="toolbar.langAria">
+        <span class="lang-label" aria-hidden="true" data-i18n="toolbar.lang">Lingua dei menu</span>
+        <button class="lang-btn lang-btn--active" data-lang="it" aria-pressed="true">IT</button>
+        <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
+      </div>
     </div>
   </header>
 
@@ -157,8 +164,16 @@
       <button type="button" class="btn-link" id="btn-resume-start" data-i18n="resume.start">Dall'inizio</button>
     </div>
     <div class="doc-head hidden" id="doc-head">
-      <h1 class="doc-title" id="doc-title"></h1>
-      <p class="doc-meta" id="doc-meta"></p>
+      <div class="doc-head__info">
+        <h1 class="doc-title" id="doc-title"></h1>
+        <p class="doc-meta" id="doc-meta"></p>
+      </div>
+      <!-- Dimensione del testo (S4) -->
+      <div class="text-size" role="group" data-i18n-aria-label="textSize.aria">
+        <span aria-hidden="true" data-i18n="textSize.label">Testo</span>
+        <button type="button" id="btn-text-smaller" data-i18n-aria-label="textSize.smaller">A&minus;</button>
+        <button type="button" id="btn-text-larger" data-i18n-aria-label="textSize.larger">A+</button>
+      </div>
     </div>
     <div class="reader-card reader-card--empty" id="reader-card">
       <!-- Stato iniziale vuoto: tutto il riquadro accetta un file trascinato -->
@@ -329,6 +344,7 @@
   ============================================================ -->
   <script src="{{ url_for('static', filename='i18n.js') }}"></script>
   <script src="{{ url_for('static', filename='prefs.js') }}"></script>
+  <script src="{{ url_for('static', filename='display-prefs.js') }}"></script>
   <script src="{{ url_for('static', filename='voice-panel.js') }}"></script>
   <script src="{{ url_for('static', filename='notices.js') }}"></script>
   <script src="{{ url_for('static', filename='reader-view.js') }}"></script>

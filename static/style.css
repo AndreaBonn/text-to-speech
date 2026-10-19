@@ -25,6 +25,11 @@
   --btn-bg:       #282520;
   --btn-hover:    #302c26;
   --btn-active:   #1e1c18;
+  --bar-bg:       rgba(40, 37, 32, 0.85);
+  --bar-bg-strong: rgba(40, 37, 32, 0.9);
+  --on-accent:    #141210;
+  --hover-tint:   rgba(232, 224, 212, 0.04);
+  --reading-scale: 1;
   --error-bg:     rgba(199, 93, 74, 0.1);
   --error-border: rgba(199, 93, 74, 0.3);
   --error-text:   #d4816a;
@@ -34,6 +39,35 @@
   --shadow:       0 4px 24px rgba(20, 18, 16, 0.5);
   --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
   --duration:     200ms;
+}
+
+/* Tema chiaro a scelta (S3): stessi toni caldi, carta invece di inchiostro.
+   L'ambra è più scura per restare leggibile sul fondo chiaro. */
+:root[data-theme="light"] {
+  --bg:           #f5efe6;
+  --card:         #fbf7f1;
+  --elevated:     #efe7db;
+  --accent:       #9a5524;
+  --accent-hover: #844719;
+  --accent-glow:  rgba(154, 85, 36, 0.12);
+  --text:         #2a241e;
+  --text-muted:   #6d6153;
+  --text-dim:     #8a7c6b;
+  --border:       rgba(42, 36, 30, 0.12);
+  --border-hover: rgba(42, 36, 30, 0.22);
+  --progress-bg:  rgba(42, 36, 30, 0.1);
+  --progress-fg:  #9a5524;
+  --btn-bg:       #efe7db;
+  --btn-hover:    #e7ddcf;
+  --btn-active:   #e0d4c4;
+  --error-bg:     rgba(176, 65, 43, 0.08);
+  --error-border: rgba(176, 65, 43, 0.3);
+  --error-text:   #a63a25;
+  --bar-bg:       rgba(239, 231, 219, 0.92);
+  --bar-bg-strong: rgba(239, 231, 219, 0.95);
+  --on-accent:    #ffffff;
+  --hover-tint:   rgba(42, 36, 30, 0.04);
+  --shadow:       0 4px 24px rgba(42, 36, 30, 0.08);
 }
 
 html, body {
@@ -58,7 +92,7 @@ body {
    TOOLBAR
 ============================================================ */
 .toolbar {
-  background-color: rgba(40, 37, 32, 0.85);
+  background-color: var(--bar-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -350,11 +384,18 @@ body {
 }
 
 /* Language switcher */
+.toolbar__end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-left: auto;
+}
+
 .lang-switcher {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -395,13 +436,13 @@ body {
 
 .lang-btn--active {
   background-color: var(--accent);
-  color: #141210;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
 .lang-btn--active:hover {
   background-color: var(--accent-hover);
-  color: #141210;
+  color: var(--on-accent);
   border-color: var(--accent-hover);
 }
 
@@ -614,7 +655,7 @@ body {
   padding: 12px 22px;
   min-height: 44px;
   background-color: var(--accent);
-  color: #141210;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-md);
   font-family: inherit;
@@ -723,7 +764,7 @@ body {
   height: 20px;
   border-radius: 50%;
   background-color: var(--accent);
-  color: #141210;
+  color: var(--on-accent);
   font-size: 0.75rem;
   font-weight: 700;
 }
@@ -753,7 +794,7 @@ body {
 
 .reader-para {
   font-family: 'Literata', Georgia, 'Times New Roman', serif;
-  font-size: 1.2rem;
+  font-size: calc(1.2rem * var(--reading-scale));
   line-height: 1.8;
   color: var(--text);
   margin: 0;
@@ -767,7 +808,7 @@ body {
 }
 
 .reader-para:hover {
-  background-color: rgba(232, 224, 212, 0.04);
+  background-color: var(--hover-tint);
 }
 
 .reader-para.is-done {
@@ -800,11 +841,73 @@ body {
   display: none;
 }
 
-/* Titolo e durata (R2) */
+/* Titolo e durata (R2), comandi di dimensione del testo (S4) */
 .doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
   width: 100%;
   max-width: 780px;
   margin-bottom: 14px;
+}
+
+.doc-head.hidden {
+  display: none;
+}
+
+.doc-head__info {
+  min-width: 0;
+}
+
+.text-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.text-size button {
+  min-width: 40px;
+  min-height: 40px;
+  background-color: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.text-size button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.text-size button:focus-visible,
+.btn-theme:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-theme {
+  min-height: 32px;
+  padding: 5px 10px;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-theme[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 .doc-title {
@@ -825,7 +928,7 @@ body {
    BARRA FISSA IN BASSO
 ============================================================ */
 .bottom-bar {
-  background-color: rgba(40, 37, 32, 0.9);
+  background-color: var(--bar-bg-strong);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
@@ -970,14 +1073,14 @@ body {
   background-color: var(--accent);
   border: none;
   border-radius: 50%;
-  color: #141210;
+  color: var(--on-accent);
   box-shadow: 0 4px 20px var(--accent-glow);
 }
 
 .player-btn--play:hover:not(:disabled) {
   background-color: var(--accent-hover);
   border-color: transparent;
-  color: #141210;
+  color: var(--on-accent);
   transform: scale(1.08);
   box-shadow: 0 6px 28px rgba(212, 145, 92, 0.25);
 }
@@ -997,7 +1100,7 @@ body {
   width: 22px;
   height: 22px;
   border: 2.5px solid rgba(20, 18, 16, 0.25);
-  border-top-color: #141210;
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: spin 0.65s linear infinite;
 }
@@ -1059,8 +1162,8 @@ body {
 
 .kbd {
   display: inline-block;
-  background-color: rgba(232, 224, 212, 0.06);
-  border: 1px solid rgba(232, 224, 212, 0.1);
+  background-color: var(--hover-tint);
+  border: 1px solid var(--border-hover);
   border-radius: 3px;
   padding: 1px 6px;
   font-size: 0.65rem;
@@ -1122,7 +1225,7 @@ body {
   }
 
   .reader-para {
-    font-size: 1.05rem;
+    font-size: calc(1.05rem * var(--reading-scale));
     line-height: 1.7;
     padding: 8px 10px;
   }
