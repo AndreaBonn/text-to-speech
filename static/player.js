@@ -543,10 +543,11 @@ class TtsPlayer {
       this.updateUI();
       this._loadAndPlay(this.currentIdx);
     } else {
-      /* Fine testo: la prossima volta si riparte dall'inizio */
-      if (this._docKey) ResumeStore.save(this._docKey, 0);
       this._setState('idle');
       this.updateUI();
+      /* Fine testo: la prossima volta si riparte dall'inizio. Dopo updateUI,
+         che altrimenti riscriverebbe la posizione dell'ultimo paragrafo */
+      if (this._docKey) ResumeStore.save(this._docKey, 0);
     }
   }
 

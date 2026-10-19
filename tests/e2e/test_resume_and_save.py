@@ -107,3 +107,21 @@ def test_position_at_second_paragraph_is_remembered_and_offered(reader):
     )
     with reader.page.expect_request(lambda r: "/api/audio/1" in r.url):
         reader.page.get_by_role("button", name="Riprendi da qui").click()
+
+
+def test_listening_to_the_end_clears_the_resume_position(reader):
+    # e4f35ce: the position is "cleared when a document is listened to the end"
+    paragraphs = make_paragraphs(3)
+    reader.goto()
+    reader.load_pasted(paragraphs)
+
+    reader.play.click()
+    reader.wait_playing()
+    expect(reader.counter).to_have_text("Paragrafo 3 di 3", timeout=15000)
+    expect(reader.play).to_have_attribute("aria-label", "Ascolta", timeout=15000)
+
+    reader.goto()
+    reader.load_pasted(paragraphs)
+
+    expect(reader.counter).to_have_text("Paragrafo 1 di 3")
+    expect(reader.page.locator("#resume-note")).to_be_hidden()
