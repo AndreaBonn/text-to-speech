@@ -24,6 +24,8 @@ class TtsPlayer {
 
     /* Prefetch blob */
     this._currentBlobUrl = null; // ObjectURL audio corrente
+    this._playToken      = 0;    // ultima richiesta di riproduzione
+    this._prefetchGen    = 0;    // invalida i prefetch in volo
     this._prefetchIdx  = -1;     // Indice a cui si riferisce il blob
     this._prefetchUrl  = null;   // ObjectURL attivo
 
@@ -255,6 +257,8 @@ class TtsPlayer {
   }
 
   async _loadDocument(path, init) {
+    /* Se il caricamento fallisce si torna qui: il documento attuale può star suonando */
+    const previousState = this._state;
     this._setState('loading');
     this._setPlayIconLoading(true);
 
@@ -305,7 +309,7 @@ class TtsPlayer {
       this.prefetchNext(-1);
 
     } catch (err) {
-      this._setState('idle');
+      this._setState(previousState === 'loading' ? 'idle' : previousState);
       this._setPlayIconLoading(false);
       this._notices.error(this._messageFor(err, 'msg.loadError'));
     }
@@ -337,7 +341,7 @@ class TtsPlayer {
   async next() {
     if (!this.totalCount) return;
     if (this.currentIdx >= this.totalCount - 1) return;
-    const wasPlaying = this._state === 'playing';
+    const wasPlaying = this._isListening();
     this._audio.pause();
     this.currentIdx++;
     this.updateUI();
@@ -348,7 +352,7 @@ class TtsPlayer {
   async prev() {
     if (!this.totalCount) return;
     if (this.currentIdx <= 0) return;
-    const wasPlaying = this._state === 'playing';
+    const wasPlaying = this._isListening();
     this._audio.pause();
     this.currentIdx--;
     this.updateUI();
@@ -367,11 +371,16 @@ class TtsPlayer {
   async goTo(index) {
     if (!this.totalCount) return;
     const idx = Math.min(Math.max(0, index), this.totalCount - 1);
-    const wasPlaying = this._state === 'playing';
+    const wasPlaying = this._isListening();
     this._audio.pause();
     this.currentIdx = idx;
     this.updateUI();
     if (wasPlaying) await this._loadAndPlay(this.currentIdx);
+  }
+
+  /** In ascolto anche mentre il prossimo audio si prepara */
+  _isListening() {
+    return this._state === 'playing' || this._state === 'loading';
   }
 
   _audioKey(idx) {
@@ -402,10 +411,13 @@ class TtsPlayer {
 
     try {
       await this._voicesReady;
+      /* Un cambio di documento, voce o stile durante la fetch rende vecchio questo audio */
+      const generation = this._prefetchGen;
       const url = `/api/audio/${nextIdx}?voice=${encodeURIComponent(this.currentVoice)}&style=${encodeURIComponent(this.currentStyle)}`;
       const res = await fetch(url);
       if (!res.ok) return;
       const blob = await res.blob();
+      if (generation !== this._prefetchGen) return;
 
       /* Revoca il vecchio ObjectURL prima di creare il nuovo */
       this._clearPrefetch();
@@ -455,6 +467,8 @@ class TtsPlayer {
      PRIVATE: load and play
   ---------------------------------------------------------- */
   async _loadAndPlay(idx) {
+    /* Solo l'ultima richiesta conta: un doppio Avanti non deve far suonare la prima */
+    const token = ++this._playToken;
     this._setState('loading');
     this._setPlayIconLoading(true);
 
@@ -473,6 +487,7 @@ class TtsPlayer {
         if (!res.ok) throw await this._apiError(res);
 
         const blob = await res.blob();
+        if (token !== this._playToken) return;
 
         /* Revoca vecchio url solo se non e' il prefetch che stiamo usando */
         if (this._prefetchUrl && this._prefetchIdx !== idx) {
@@ -480,9 +495,11 @@ class TtsPlayer {
         }
 
         audioSrc = URL.createObjectURL(blob);
-        /* Salva il riferimento per poterlo revocare dopo */
+        /* Il blob precedente non serve più: senza revoca resta in memoria */
+        if (this._currentBlobUrl) URL.revokeObjectURL(this._currentBlobUrl);
         this._currentBlobUrl = audioSrc;
       }
+      if (token !== this._playToken) return;
 
       this._audio.src = audioSrc;
       this._loadedKey = this._audioKey(idx);
@@ -495,6 +512,7 @@ class TtsPlayer {
       this.prefetchNext(idx);
 
     } catch (err) {
+      if (token !== this._playToken) return;
       this._setState('idle');
       this._setPlayIconLoading(false);
       this._notices.error(this._messageFor(err, 'msg.synthesisError'),
@@ -533,7 +551,8 @@ class TtsPlayer {
   }
 
   _onPaused() {
-    if (this._state !== 'idle') {
+    /* pause() in next/prev/goTo arriva qui in ritardo: non annullare il 'loading' */
+    if (this._state !== 'idle' && this._state !== 'loading') {
       this._setState('paused');
       this.updateUI();
     }
@@ -647,6 +666,7 @@ class TtsPlayer {
      PRIVATE: prefetch cache
   ---------------------------------------------------------- */
   _clearPrefetch() {
+    this._prefetchGen++;
     if (this._prefetchUrl) {
       URL.revokeObjectURL(this._prefetchUrl);
     }
@@ -750,7 +770,7 @@ class TtsPlayer {
 
   /** Dopo un cambio di voce o stile: durante l'ascolto il paragrafo riparte subito (R12). */
   _afterVoiceOrStyleChange(message) {
-    const wasPlaying = this._state === 'playing';
+    const wasPlaying = this._isListening();
     this._updateSaveLink();
     this._clearPrefetch();
     this._refreshPanel();
