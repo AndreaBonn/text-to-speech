@@ -809,3 +809,36 @@ class TestAppConfiguration:
         meta = next(v for v in VOICES_META if v["id"] == voice_id)
 
         assert meta == {"id": voice_id, "label": voice_id.capitalize(), **expected}
+
+
+class TestUppercaseExtension:
+    """Windows and phones often save files as NOTA.MD or REPORT.PDF."""
+
+    @pytest.mark.parametrize("name", ["Nota.MD", "REPORT.Txt", "libro.EPUB"])
+    def test_sanitize_accepts_uppercase_extension(self, name):
+        from src.app import _sanitize_filename
+
+        assert _sanitize_filename(name) == name
+
+    def test_load_uppercase_markdown_is_read_with_markdown_style(self, client):
+        response = client.post(
+            "/api/load",
+            data={"file": (io.BytesIO(b"# Titolo\n\nCorpo del testo."), "Nota.MD")},
+            content_type="multipart/form-data",
+        )
+
+        assert response.status_code == 200
+        body = response.get_json()
+        assert body["filename"] == "Nota.MD"
+        assert body["title"] == "Nota"
+        assert body["suggested_style"] == "notiziario"
+        assert [p["text"] for p in body["paragraphs"]] == ["Titolo", "Corpo del testo."]
+
+    def test_load_unsupported_uppercase_extension_is_still_rejected(self, client):
+        response = client.post(
+            "/api/load",
+            data={"file": (io.BytesIO(b"x"), "virus.EXE")},
+            content_type="multipart/form-data",
+        )
+
+        assert response.status_code == 400

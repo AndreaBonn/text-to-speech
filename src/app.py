@@ -147,13 +147,13 @@ def _sanitize_filename(raw_name: str) -> str:
     """Estrae il nome base e rimuove caratteri non sicuri."""
     base = PurePosixPath(raw_name).name
     ext_pattern = "|".join(re.escape(ext) for ext in sorted(SUPPORTED_EXTENSIONS))
-    if not re.fullmatch(rf"{_FILENAME_CHARS}+({ext_pattern})", base, re.UNICODE):
+    if not re.fullmatch(rf"{_FILENAME_CHARS}+(?i:{ext_pattern})", base, re.UNICODE):
         return ""
     return base
 
 
 def _has_supported_extension(raw_name: str) -> bool:
-    return PurePosixPath(raw_name).suffix in SUPPORTED_EXTENSIONS
+    return PurePosixPath(raw_name).suffix.lower() in SUPPORTED_EXTENSIONS
 
 
 @app.route("/api/load", methods=["POST"])
@@ -212,7 +212,7 @@ def _document_response(name: str, paragraphs: list[str], suggested_style: str):
     return jsonify(
         {
             "filename": name,
-            "title": Path(name).stem if Path(name).suffix in SUPPORTED_EXTENSIONS else name,
+            "title": Path(name).stem if Path(name).suffix.lower() in SUPPORTED_EXTENSIONS else name,
             "estimated_seconds": max(1, math.ceil(total_chars / CHARS_PER_SECOND)),
             "total": len(paragraphs),
             "paragraphs": [
