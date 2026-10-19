@@ -79,3 +79,46 @@ class TestOnlineProbeCacheDuration:
             engine.is_online_available()
 
         assert synth.call_count == 1
+
+
+class TestStaleSynthesisAfterNewDocument:
+    def test_prefetch_of_previous_document_does_not_poison_new_one(self, engine):
+        import threading
+
+        engine.load_text("Vecchio uno.\n\nVecchio due.", "vecchio.txt")
+        started, release = threading.Event(), threading.Event()
+
+        def slow_synth(text, voice, style="neutro", timeout=60):
+            if text == "Vecchio due.":
+                started.set()
+                release.wait(5)
+            return text.encode()
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        # Own executor: the module one may still be busy with other tests' prefetches
+        with (
+            patch("src.tts_engine._executor", ThreadPoolExecutor(max_workers=1)),
+            patch.object(engine, "_synthesize_text", side_effect=slow_synth),
+        ):
+            pending = engine.prefetch(1, "paola")
+            assert started.wait(5)
+            engine.load_text("Nuovo uno.\n\nNuovo due.", "nuovo.txt")
+            release.set()
+            pending.result(timeout=5)
+            audio = engine.get_audio(1, "paola")
+
+        assert audio == b"Nuovo due."
+
+    def test_save_all_finishes_from_snapshot_when_a_new_document_is_loaded(self, engine):
+        engine.load_text("Vecchio uno.\n\nVecchio due.", "vecchio.txt")
+
+        def synth(text, voice, style="neutro", timeout=60):
+            if text == "Vecchio uno.":
+                engine.load_text("Nuovo.", "nuovo.txt")  # loaded while saving
+            return text.encode()
+
+        with patch.object(engine, "_synthesize_text", side_effect=synth):
+            audio = engine.save_all("paola")
+
+        assert audio == b"Vecchio uno.Vecchio due."

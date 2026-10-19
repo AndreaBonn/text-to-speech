@@ -93,6 +93,9 @@ class TTSEngine:
         self._piper_voice = None
         self._piper_sample_rate: int = 0
         self._online_ok = False
+        # Bumped on every load: audio synthesized for an older document must not
+        # land in the cache under the new document's paragraph keys.
+        self._generation = 0
         self._online_checked_at: float | None = None
 
     @property
@@ -112,6 +115,7 @@ class TTSEngine:
         paragraphs = _split_paragraphs(file_a_testo(path))
         with self._lock:
             self._paragraphs = paragraphs
+            self._generation += 1
             self._filename = display_name or path.name
             self._cache.clear()
         return paragraphs
@@ -121,6 +125,7 @@ class TTSEngine:
         paragraphs = _split_paragraphs(text)
         with self._lock:
             self._paragraphs = paragraphs
+            self._generation += 1
             self._filename = filename
             self._cache.clear()
         return paragraphs
@@ -136,8 +141,9 @@ class TTSEngine:
                 self._cache.move_to_end(cache_key)
                 return self._cache[cache_key]
 
+        generation = self._generation
         mp3_bytes = self._synthesize(index, voice, style)
-        self._put_cache(cache_key, mp3_bytes)
+        self._put_cache_if_current(cache_key, mp3_bytes, generation)
 
         # Prefetch prossimo paragrafo in background
         if index + 1 < len(self._paragraphs):
@@ -165,14 +171,16 @@ class TTSEngine:
             if cache_key in self._cache:
                 return
 
+        generation = self._generation
+
         def _do_prefetch():
             try:
                 mp3 = self._synthesize(index, voice, style)
-                self._put_cache(cache_key, mp3)
+                self._put_cache_if_current(cache_key, mp3, generation)
             except Exception:
                 log.warning("Prefetch paragrafo %d fallito", index, exc_info=True)
 
-        _executor.submit(_do_prefetch)
+        return _executor.submit(_do_prefetch)
 
     def save_all(
         self,
@@ -188,13 +196,18 @@ class TTSEngine:
         """
         with self._lock:
             snapshot = list(self._paragraphs)
+            generation = self._generation
 
         total = len(snapshot)
         report = on_progress or (lambda done, total: None)
         report(0, total)
         all_mp3 = []
-        for i in range(total):
-            all_mp3.append(self.get_audio(i, voice, style))
+        for i, text in enumerate(snapshot):
+            if generation == self._generation:
+                all_mp3.append(self.get_audio(i, voice, style))
+            else:
+                # Another document was loaded mid-save: finish this one from the snapshot
+                all_mp3.append(self._synthesize_text(text, voice, style))
             report(i + 1, total)
         return _concat_mp3_bytes(all_mp3)
 
@@ -255,6 +268,12 @@ class TTSEngine:
             scarica_voce_piper()
             self._piper_voice = PiperVoice.load(str(VOICE_MODEL), config_path=str(VOICE_JSON))
             self._piper_sample_rate = self._piper_voice.config.sample_rate
+
+    def _put_cache_if_current(self, key: str, data: bytes, generation: int):
+        with self._lock:
+            if generation != self._generation:
+                return
+        self._put_cache(key, data)
 
     def _put_cache(self, key: str, data: bytes):
         with self._lock:
