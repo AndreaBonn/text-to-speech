@@ -47,3 +47,13 @@ class TestOnlineProbe:
             engine.is_online_available()
 
         assert synth.call_count == 1
+
+
+class TestSaveProgress:
+    def test_save_all_reports_progress_after_each_paragraph(self, engine):
+        engine.load_text("Uno.\n\nDue.\n\nTre.", "x.txt")
+        steps = []
+        with patch.object(engine, "_synthesize_text", return_value=b"mp3"):
+            engine.save_all("paola", on_progress=lambda done, total: steps.append((done, total)))
+
+        assert steps == [(0, 3), (1, 3), (2, 3), (3, 3)]

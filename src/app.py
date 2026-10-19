@@ -12,6 +12,7 @@ import math
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -66,6 +67,15 @@ VOICES_META = [
 
 
 OFFLINE_VOICE = sorted(PIPER_VOICES)[0]
+
+# Single-user app: one save at a time, polled by the UI to show a real percentage.
+_save_progress = {"done": 0, "total": 0, "active": False}
+_save_progress_lock = threading.Lock()
+
+
+def _set_save_progress(done: int, total: int, active: bool = True) -> None:
+    with _save_progress_lock:
+        _save_progress.update(done=done, total=total, active=active)
 
 
 def _voice_failure_response(lang: str, voice: str, key: str):
@@ -265,6 +275,13 @@ def api_prefetch(idx):
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/save/progress")
+def api_save_progress():
+    """Avanzamento del salvataggio MP3 in corso (paragrafi sintetizzati su totale)."""
+    with _save_progress_lock:
+        return jsonify(dict(_save_progress))
+
+
 @app.route("/api/save", methods=["POST"])
 def api_save():
     """Genera e scarica il file MP3 completo."""
@@ -280,10 +297,13 @@ def api_save():
         return jsonify({"error": tr(lang, "error.no_file_loaded")}), 400
 
     try:
-        mp3_bytes = engine.save_all(voice, style)
+        mp3_bytes = engine.save_all(voice, style, on_progress=_set_save_progress)
     except Exception:
         log.exception("Salvataggio MP3 fallito con voce %s stile %s", voice, style)
         return _voice_failure_response(lang, voice, "error.save_voice_unavailable")
+    finally:
+        with _save_progress_lock:
+            _save_progress["active"] = False
 
     stem = Path(engine.filename).stem
     safe_name = "".join(c for c in f"{stem}.mp3" if c.isalnum() or c in ".-_ ") or "output.mp3"

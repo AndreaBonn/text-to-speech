@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -170,18 +171,28 @@ class TTSEngine:
 
         _executor.submit(_do_prefetch)
 
-    def save_all(self, voice: str, style: str = DEFAULT_STYLE) -> bytes:
+    def save_all(
+        self,
+        voice: str,
+        style: str = DEFAULT_STYLE,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> bytes:
         """Sintetizza tutti i paragrafi e restituisce MP3 concatenato.
 
         Usa uno snapshot della lista paragrafi per evitare corruzione
         se un nuovo file viene caricato durante l'operazione.
+        ``on_progress(done, total)`` viene chiamato all'inizio e dopo ogni paragrafo.
         """
         with self._lock:
             snapshot = list(self._paragraphs)
 
+        total = len(snapshot)
+        report = on_progress or (lambda done, total: None)
+        report(0, total)
         all_mp3 = []
-        for i in range(len(snapshot)):
+        for i in range(total):
             all_mp3.append(self.get_audio(i, voice, style))
+            report(i + 1, total)
         return _concat_mp3_bytes(all_mp3)
 
     def _synthesize(self, index: int, voice: str, style: str = DEFAULT_STYLE) -> bytes:

@@ -216,3 +216,39 @@ class TestSavedFileName:
             response = client.post("/api/save", json={"voice": "paola"})
 
         assert 'filename="capitolo uno.mp3"' in response.headers["Content-Disposition"]
+
+
+class TestSaveProgressEndpoint:
+    def test_progress_is_idle_before_any_save(self, client):
+        from src import app as flask_app
+
+        flask_app._set_save_progress(0, 0, active=False)
+        data = client.get("/api/save/progress").get_json()
+
+        assert data == {"done": 0, "total": 0, "active": False}
+
+    def test_progress_is_visible_while_saving_and_closed_after(self, client):
+        from src import app as flask_app
+
+        _load_document(client)
+        seen = {}
+
+        def fake_save(voice, style, on_progress):
+            on_progress(1, 2)
+            # A nested test-client request would break Flask's request context.
+            seen["during"] = dict(flask_app._save_progress)
+            on_progress(2, 2)
+            return b"mp3"
+
+        with patch("src.app.engine.save_all", side_effect=fake_save):
+            client.post("/api/save", json={"voice": "paola"})
+
+        assert seen["during"] == {"done": 1, "total": 2, "active": True}
+        assert client.get("/api/save/progress").get_json()["active"] is False
+
+    def test_progress_closes_when_save_fails(self, client):
+        _load_document(client)
+        with patch("src.app.engine.save_all", side_effect=OSError("403")):
+            client.post("/api/save", json={"voice": "giuseppe"})
+
+        assert client.get("/api/save/progress").get_json()["active"] is False
