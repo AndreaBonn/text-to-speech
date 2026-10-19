@@ -79,6 +79,9 @@ const I18N_TRANSLATIONS = {
     'label.next':               'Avanti',
     'label.repeat':             'Riascolta',
     'label.speed':              'Velocità',
+    'save.preparing':           'Sto preparando l\'MP3 di tutto il testo. Con testi lunghi può richiedere alcuni minuti: non chiudere la pagina.',
+    'save.progress':            'Preparo l\'MP3: {done} di {total} paragrafi pronti. Non chiudere la pagina.',
+    'save.done':                'MP3 scaricato: {name}',
     'player.speedAria':         'Velocità di lettura',
     'status.preparing':         'Preparo l\'audio... la prima volta può richiedere qualche secondo.',
 
@@ -173,6 +176,9 @@ const I18N_TRANSLATIONS = {
     'label.next':               'Next',
     'label.repeat':             'Replay',
     'label.speed':              'Speed',
+    'save.preparing':           'Preparing the MP3 of the whole text. Long texts can take a few minutes: keep this page open.',
+    'save.progress':            'Preparing the MP3: {done} of {total} paragraphs ready. Keep this page open.',
+    'save.done':                'MP3 downloaded: {name}',
     'player.speedAria':         'Reading speed',
     'status.preparing':         'Preparing the audio... the first time it can take a few seconds.',
 

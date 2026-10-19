@@ -65,6 +65,10 @@ class TtsPlayer {
       bottomBar:       document.getElementById('bottom-bar'),
       fileName:        document.getElementById('file-name'),
       btnSave:         document.getElementById('btn-save'),
+      saveStatus:      document.getElementById('save-status'),
+      saveStatusText:  document.getElementById('save-status-text'),
+      saveStatusBar:   document.getElementById('save-status-bar'),
+      saveStatusFill:  document.getElementById('save-status-fill'),
     };
     this._notices = new Notices();
     this._reader = new ReaderView(this._dom.readerText, (idx) => this._playFrom(idx));
@@ -662,38 +666,43 @@ class TtsPlayer {
     await this._voicesReady;
     const voice = this._dom.btnSave.dataset.voice;
     const style = this._dom.btnSave.dataset.style;
-    if (!voice) return;
+    if (!voice || this._dom.btnSave.disabled) return;
 
-    const btn = this._dom.btnSave;
-    btn.disabled = true;
+    this._dom.btnSave.disabled = true;
+    this._showSaveStatus(t('save.preparing'), null);
 
     try {
-      const lang = i18nGetLang();
-      const res = await fetch(`/api/save?lang=${lang}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voice, style }),
-      });
-
+      const { res, blob, filename } = await requestMp3(voice, style, (done, total) =>
+        this._showSaveStatus(t('save.progress', { done, total }), done / total));
       if (!res.ok) throw await this._apiError(res);
 
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `tts_${voice}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const name = filename || `${this._docSummary?.title || 'audio'}.mp3`;
+      triggerDownload(blob, name);
       this._notices.clear();
+      this._showSaveStatus(t('save.done', { name }), 1);
+      this._saveStatusTimer = setTimeout(() => this._hideSaveStatus(), SAVE_DONE_VISIBLE_MS);
 
     } catch (err) {
+      this._hideSaveStatus();
       this._notices.error(this._messageFor(err, 'msg.saveFailed'),
         this._fallbackAction(err, 'action.saveWith', () => this._handleSave()));
     } finally {
-      btn.disabled = false;
+      this._dom.btnSave.disabled = false;
     }
+  }
+
+  /** Riga di stato del salvataggio (R8) con barra di avanzamento reale (R9). */
+  _showSaveStatus(text, ratio) {
+    clearTimeout(this._saveStatusTimer);
+    this._dom.saveStatusText.textContent = text;
+    this._dom.saveStatusBar.classList.toggle('hidden', ratio === null);
+    this._dom.saveStatusFill.style.width = `${Math.round((ratio || 0) * 100)}%`;
+    this._dom.saveStatus.classList.remove('hidden');
+  }
+
+  _hideSaveStatus() {
+    clearTimeout(this._saveStatusTimer);
+    this._dom.saveStatus.classList.add('hidden');
   }
 
   /* ----------------------------------------------------------

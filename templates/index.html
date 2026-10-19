@@ -113,6 +113,14 @@
     </button>
   </div>
 
+  <!-- Stato del salvataggio MP3 (R8, R9) -->
+  <div id="save-status" class="save-status hidden" role="status" aria-live="polite">
+    <span id="save-status-text"></span>
+    <div class="save-status__bar hidden" id="save-status-bar" aria-hidden="true">
+      <div class="save-status__fill" id="save-status-fill"></div>
+    </div>
+  </div>
+
   <!-- ============================================================
        AREA DI LETTURA
   ============================================================ -->
@@ -291,6 +299,7 @@
   <script src="{{ url_for('static', filename='i18n.js') }}"></script>
   <script src="{{ url_for('static', filename='notices.js') }}"></script>
   <script src="{{ url_for('static', filename='reader-view.js') }}"></script>
+  <script src="{{ url_for('static', filename='save-mp3.js') }}"></script>
   <script src="{{ url_for('static', filename='player.js') }}"></script>
 
 </body>

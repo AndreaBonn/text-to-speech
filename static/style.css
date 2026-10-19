@@ -263,6 +263,11 @@ body {
   background-color: rgba(212, 145, 92, 0.12);
 }
 
+.btn-save:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .btn-save.hidden {
   display: none;
 }
@@ -337,6 +342,38 @@ body {
 @keyframes slideDown {
   from { transform: translateY(-100%); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* Stato del salvataggio MP3 */
+.save-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 20px;
+  background-color: var(--elevated);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.save-status.hidden {
+  display: none;
+}
+
+.save-status__bar {
+  flex: 0 1 220px;
+  height: 8px;
+  background-color: var(--progress-bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.save-status__fill {
+  height: 100%;
+  width: 0;
+  background-color: var(--accent);
+  transition: width 0.4s var(--ease-out);
 }
 
 /* ============================================================
