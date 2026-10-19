@@ -52,6 +52,17 @@ from src.synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
 # ─── Utilità audio ───────────────────────────────────────────────────────────
 
 
+# ffmpeg encodes ~10 MB of WAV per second (measured on 26 MB, 2026-10-19):
+# 1 s per MB leaves a 10x margin, and a long audiobook no longer hits a
+# fixed limit after the whole text has been synthesized.
+FFMPEG_MIN_TIMEOUT_S = 30
+_BYTES_PER_TIMEOUT_S = 1024 * 1024
+
+
+def _timeout_ffmpeg(n_bytes: int) -> float:
+    return max(FFMPEG_MIN_TIMEOUT_S, n_bytes / _BYTES_PER_TIMEOUT_S)
+
+
 def wav_a_mp3(wav_bytes: bytes, output_path: Path):
     subprocess.run(
         [
@@ -69,7 +80,7 @@ def wav_a_mp3(wav_bytes: bytes, output_path: Path):
         ],
         input=wav_bytes,
         check=True,
-        timeout=30,
+        timeout=_timeout_ffmpeg(len(wav_bytes)),
     )
 
 
@@ -149,7 +160,9 @@ def riproduci_audio(audio_bytes: bytes, formato: str):
         return
 
     if supporta_stdin:
-        subprocess.run(cmd, input=audio_bytes, check=False, timeout=60)
+        # No timeout: playback lasts as long as the audio, and every player
+        # here exits at end of stream (-autoexit, aplay, afplay).
+        subprocess.run(cmd, input=audio_bytes, check=False)
     else:
         # afplay (macOS) non supporta stdin: usa file temporaneo
         import tempfile
@@ -159,7 +172,7 @@ def riproduci_audio(audio_bytes: bytes, formato: str):
             tmp.write(audio_bytes)
             tmp_path = tmp.name
         try:
-            subprocess.run([*cmd, tmp_path], check=False, timeout=60)
+            subprocess.run([*cmd, tmp_path], check=False)
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 

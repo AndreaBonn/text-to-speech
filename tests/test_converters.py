@@ -169,6 +169,24 @@ class TestConvertiMarkdown:
         ]
         assert risultato == "OUTPUT-DI-PANDOC\n"
 
+    def test_pandoc_in_timeout_usa_fallback_regex(self, tmp_path):
+        """pandoc bloccato su un file enorme: si legge comunque col fallback."""
+        import subprocess
+
+        md = tmp_path / "doc.md"
+        md.write_text("# Titolo\n\nCorpo **importante**.")
+
+        with (
+            patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+            patch(
+                "src.converters.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(["pandoc"], 30),
+            ),
+        ):
+            risultato = file_a_testo(md)
+
+        assert risultato == "Titolo\n\nCorpo importante."
+
     def test_pandoc_errore_usa_fallback_regex(self, tmp_path):
         """Se pandoc esce con errore si usa il fallback regex sul file."""
         # Arrange

@@ -1353,19 +1353,27 @@ class TestWavAMp3:
         assert kwargs["input"] == audio
         assert kwargs["check"] is True
 
-    def test_timeout_impostato_a_30(self, tmp_path):
-        """Deve impostare timeout=30 per evitare blocchi infiniti."""
+    def test_timeout_minimo_per_un_audio_corto(self, tmp_path):
+        """Un paragrafo breve ha comunque un limite: ffmpeg bloccato non resta appeso."""
         from src.leggi import wav_a_mp3
 
-        # Arrange
-        output = tmp_path / "output.mp3"
+        with patch("src.leggi.subprocess.run") as mock_run:
+            wav_a_mp3(b"\x00" * 1024, tmp_path / "output.mp3")
+
+        assert mock_run.call_args[1]["timeout"] == 30
+
+    def test_timeout_cresce_con_un_audiolibro_lungo(self, tmp_path):
+        """400 MB di WAV (circa 2,5 ore con Piper) si codificano in ~40 s misurati:
+        il limite deve lasciare almeno il doppio di margine, non 30 s fissi."""
+        from src.leggi import wav_a_mp3
+
+        wav_grande = MagicMock(spec=bytes)
+        wav_grande.__len__.return_value = 400 * 1024 * 1024
 
         with patch("src.leggi.subprocess.run") as mock_run:
-            # Act
-            wav_a_mp3(b"", output)
+            wav_a_mp3(wav_grande, tmp_path / "output.mp3")
 
-        # Assert
-        assert mock_run.call_args[1]["timeout"] == 30
+        assert mock_run.call_args[1]["timeout"] >= 80
 
     def test_argv_ffmpeg_completo(self, tmp_path):
         """argv esatto: sovrascrive (-y), legge da stdin, MP3 a 128k."""
@@ -1471,6 +1479,41 @@ class TestConcatenaMp3:
 
 class TestRiproduciAudio:
     """Test per la riproduzione audio con fallback player."""
+
+    @staticmethod
+    def _wav(secondi: int) -> bytes:
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(8000)
+            wf.writeframes(b"\x00\x00" * 8000 * secondi)
+        return buf.getvalue()
+
+    @staticmethod
+    def _player_in_tempo_reale(cmd, input=None, timeout=None, **kwargs):
+        """Fake subprocess.run: il player resta aperto per la durata dell'audio."""
+        audio = input if input is not None else Path(cmd[-1]).read_bytes()
+        with wave.open(io.BytesIO(audio), "rb") as wf:
+            durata = wf.getnframes() / wf.getframerate()
+        if timeout is not None and timeout < durata:
+            raise subprocess.TimeoutExpired(cmd, timeout)
+
+    @pytest.mark.parametrize(
+        ("cmd", "stdin"),
+        [(["aplay", "-q", "-"], True), (["afplay"], False)],
+    )
+    def test_paragrafo_di_90_secondi_viene_letto_fino_in_fondo(self, cmd, stdin):
+        """Piper legge ~15 caratteri al secondo: 1.350 caratteri sono 90 s di audio."""
+        from src.leggi import riproduci_audio
+
+        with (
+            patch("src.leggi._trova_player", return_value=(cmd, stdin)),
+            patch("src.leggi.subprocess.run", side_effect=self._player_in_tempo_reale) as run,
+        ):
+            riproduci_audio(self._wav(90), "wav")
+
+        run.assert_called_once()
 
     def test_nessun_player_non_chiama_subprocess(self):
         """Senza player disponibile non deve chiamare subprocess.run."""

@@ -91,15 +91,19 @@ def _converti_markdown(percorso: Path) -> str:
     che rimuove la sintassi Markdown più comune.
     """
     if shutil.which("pandoc"):
-        result = subprocess.run(
-            ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return result.stdout
-        log.warning("pandoc ha restituito un errore, uso il fallback regex.")
+        try:
+            result = subprocess.run(
+                ["pandoc", str(percorso), "-t", "plain", "--wrap=none"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            log.warning("pandoc non ha risposto entro 30 s, uso il fallback regex.")
+        else:
+            if result.returncode == 0:
+                return result.stdout
+            log.warning("pandoc ha restituito un errore, uso il fallback regex.")
 
     testo = _leggi_testo(percorso)
     testo = re.sub(r"#{1,6}\s*", "", testo)
