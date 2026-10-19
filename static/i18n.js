@@ -71,12 +71,13 @@ const I18N_TRANSLATIONS = {
     'kbd.aria':                 'Scorciatoie da tastiera disponibili',
 
     /* Dynamic messages (player.js) */
-    'msg.loadError':            'Errore nel caricamento del file.',
-    'msg.loadErrorDetail':      'Errore nel caricamento: {message}',
-    'msg.synthesisError':       'Errore sintesi audio.',
-    'msg.synthesisErrorDetail': 'Errore sintesi: {message} Riprova o cambia voce.',
-    'msg.playbackError':        'Errore di riproduzione audio. Riprova o cambia voce.',
-    'msg.saveFailed':           'Salvataggio fallito: {message}',
+    'msg.loadError':            'Non sono riuscito a caricare il file. Riprova.',
+    'msg.network':              'Non riesco a contattare il lettore: controlla che il programma sia ancora aperto e riprova.',
+    'msg.synthesisError':       'Non sono riuscito a preparare l\'audio. Riprova o scegli un\'altra voce.',
+    'msg.playbackError':        'Il browser non è riuscito a riprodurre l\'audio. Riprova o scegli un\'altra voce.',
+    'msg.saveFailed':           'Non sono riuscito a creare l\'MP3. Riprova.',
+    'action.listenWith':        'Ascolta con {voice} (senza internet)',
+    'action.saveWith':          'Salva con {voice} (senza internet)',
   },
 
   en: {
@@ -144,12 +145,13 @@ const I18N_TRANSLATIONS = {
     'kbd.aria':                 'Available keyboard shortcuts',
 
     /* Dynamic messages (player.js) */
-    'msg.loadError':            'Error loading file.',
-    'msg.loadErrorDetail':      'Error loading: {message}',
-    'msg.synthesisError':       'Audio synthesis error.',
-    'msg.synthesisErrorDetail': 'Synthesis error: {message} Try again or change voice.',
-    'msg.playbackError':        'Audio playback error. Try again or change voice.',
-    'msg.saveFailed':           'Save failed: {message}',
+    'msg.loadError':            'I couldn\'t load the file. Please try again.',
+    'msg.network':              'I can\'t reach the reader: check that the program is still running and try again.',
+    'msg.synthesisError':       'I couldn\'t prepare the audio. Try again or choose another voice.',
+    'msg.playbackError':        'The browser couldn\'t play the audio. Try again or choose another voice.',
+    'msg.saveFailed':           'I couldn\'t create the MP3. Please try again.',
+    'action.listenWith':        'Listen with {voice} (no internet needed)',
+    'action.saveWith':          'Save with {voice} (no internet needed)',
   },
 };
 

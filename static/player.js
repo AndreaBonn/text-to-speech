@@ -53,9 +53,8 @@ class TtsPlayer {
       fileInput:       document.getElementById('file-input'),
       fileName:        document.getElementById('file-name'),
       btnSave:         document.getElementById('btn-save'),
-      errorBanner:     document.getElementById('error-banner'),
-      errorMsg:        document.getElementById('error-banner-msg'),
     };
+    this._notices = new Notices();
 
     this._bindUI();
     this._loadVoices();
@@ -85,6 +84,7 @@ class TtsPlayer {
         opt.value  = v.id;
         opt.textContent = v.label + (v.multilingual ? ' (multi)' : '');
         opt.dataset.type = v.type;
+        opt.dataset.name = v.label;
         vSel.appendChild(opt);
       });
       vSel.value         = prevVoice || data.default;
@@ -126,12 +126,7 @@ class TtsPlayer {
     });
 
     /* Voice select */
-    this._dom.voiceSelect.addEventListener('change', () => {
-      this.currentVoice = this._dom.voiceSelect.value;
-      this._updateStyleEnabled();
-      this._updateSaveLink();
-      this._clearPrefetch();
-    });
+    this._dom.voiceSelect.addEventListener('change', () => this._applyVoiceChange());
 
     /* Style select */
     this._dom.styleSelect.addEventListener('change', () => {
@@ -179,10 +174,6 @@ class TtsPlayer {
       if (e.key === 'End')        { e.preventDefault(); this.goTo(this.totalCount - 1); }
     });
 
-    /* Chiudi banner errore */
-    document.getElementById('btn-close-error')
-      .addEventListener('click', () => this._hideError());
-
     /* Scorciatoie tastiera globali */
     document.addEventListener('keydown', (e) => {
       /* Ignora se focus su input/select/button lingua */
@@ -211,11 +202,8 @@ class TtsPlayer {
     try {
       const lang = i18nGetLang();
       const res  = await fetch(`/api/load?lang=${lang}`, { method: 'POST', body: formData });
+      if (!res.ok) throw await this._apiError(res);
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || t('msg.loadError'));
-      }
 
       this.paragraphs   = data.paragraphs;
       this.totalCount   = data.total;
@@ -223,6 +211,7 @@ class TtsPlayer {
       this.currentIdx   = 0;
 
       this._clearPrefetch();
+      this._notices.clear();
       this._setState('idle');
       this._setPlayIconLoading(false);
 
@@ -246,7 +235,7 @@ class TtsPlayer {
     } catch (err) {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError(t('msg.loadErrorDetail', { message: err.message }));
+      this._notices.error(this._messageFor(err, 'msg.loadError'));
     }
   }
 
@@ -402,11 +391,7 @@ class TtsPlayer {
         const url = `/api/audio/${idx}?voice=${encodeURIComponent(this.currentVoice)}&style=${encodeURIComponent(this.currentStyle)}`;
         const res = await fetch(url);
 
-        if (!res.ok) {
-          let msg = t('msg.synthesisError');
-          try { const d = await res.json(); msg = d.error || msg; } catch(_) {}
-          throw new Error(msg);
-        }
+        if (!res.ok) throw await this._apiError(res);
 
         const blob = await res.blob();
 
@@ -431,7 +416,8 @@ class TtsPlayer {
     } catch (err) {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError(t('msg.synthesisErrorDetail', { message: err.message }));
+      this._notices.error(this._messageFor(err, 'msg.synthesisError'),
+        this._fallbackAction(err, 'action.listenWith', () => this.play()));
     }
   }
 
@@ -458,6 +444,7 @@ class TtsPlayer {
   }
 
   _onPlaying() {
+    this._notices.clear();
     this._setState('playing');
     this._setPlayIconLoading(false);
     this.updateUI();
@@ -474,7 +461,7 @@ class TtsPlayer {
     if (this._state === 'loading' || this._state === 'playing') {
       this._setState('idle');
       this._setPlayIconLoading(false);
-      this._showError(t('msg.playbackError'));
+      this._notices.error(t('msg.playbackError'));
       this.updateUI();
     }
   }
@@ -600,10 +587,7 @@ class TtsPlayer {
         body: JSON.stringify({ voice, style }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Error ${res.status}`);
-      }
+      if (!res.ok) throw await this._apiError(res);
 
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
@@ -614,9 +598,11 @@ class TtsPlayer {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      this._notices.clear();
 
     } catch (err) {
-      this._showError(t('msg.saveFailed', { message: err.message }));
+      this._notices.error(this._messageFor(err, 'msg.saveFailed'),
+        this._fallbackAction(err, 'action.saveWith', () => this._handleSave()));
     } finally {
       btn.disabled = false;
     }
@@ -625,18 +611,43 @@ class TtsPlayer {
   /* ----------------------------------------------------------
      PRIVATE: errori
   ---------------------------------------------------------- */
-  _showError(msg) {
-    this._dom.errorMsg.textContent = msg;
-    this._dom.errorBanner.classList.remove('hidden');
 
-    /* Auto-dismiss dopo 5 secondi */
-    clearTimeout(this._errorTimer);
-    this._errorTimer = setTimeout(() => this._hideError(), 5000);
+  /** Errore con il messaggio del server e l'eventuale voce di riserva. */
+  async _apiError(res) {
+    const { message, fallbackVoice } = await readApiError(res);
+    const err = new Error(message || `HTTP ${res.status}`);
+    err.userMessage = message;
+    err.fallbackVoice = fallbackVoice;
+    return err;
   }
 
-  _hideError() {
-    this._dom.errorBanner.classList.add('hidden');
-    clearTimeout(this._errorTimer);
+  /** Testo da mostrare: messaggio del server, rete assente o fallback generico. */
+  _messageFor(err, fallbackKey) {
+    if (err.userMessage) return err.userMessage;
+    if (err instanceof TypeError) return t('msg.network');
+    return t(fallbackKey);
+  }
+
+  /** Azione "continua con la voce offline" se il server ne ha proposta una. */
+  _fallbackAction(err, labelKey, retry) {
+    const voice = err.fallbackVoice;
+    const option = voice && this._dom.voiceSelect.querySelector(`option[value="${voice}"]`);
+    if (!option) return null;
+    return {
+      label: t(labelKey, { voice: option.dataset.name || voice }),
+      run: () => {
+        this._dom.voiceSelect.value = voice;
+        this._applyVoiceChange();
+        retry();
+      },
+    };
+  }
+
+  _applyVoiceChange() {
+    this.currentVoice = this._dom.voiceSelect.value;
+    this._updateStyleEnabled();
+    this._updateSaveLink();
+    this._clearPrefetch();
   }
 }
 
