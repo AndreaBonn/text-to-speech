@@ -152,6 +152,16 @@ def _sanitize_filename(raw_name: str) -> str:
     return base
 
 
+def _json_object() -> dict:
+    """Return the JSON body when it is an object, else an empty dict.
+
+    A valid but non-object body ([1], "text") would otherwise reach
+    ``data.get`` and turn into a 500 HTML page instead of a JSON error.
+    """
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
 def _has_supported_extension(raw_name: str) -> bool:
     return PurePosixPath(raw_name).suffix.lower() in SUPPORTED_EXTENSIONS
 
@@ -197,7 +207,7 @@ def api_load():
 def api_load_text():
     """Carica un testo incollato e restituisce i paragrafi."""
     lang = get_lang(request)
-    data = request.get_json(silent=True) or {}
+    data = _json_object()
     text = data.get("text")
     name = tr(lang, "document.pasted_text")
     try:
@@ -289,7 +299,7 @@ def api_save_progress():
 def api_save():
     """Genera e scarica il file MP3 completo."""
     lang = get_lang(request)
-    data = request.get_json(silent=True) or {}
+    data = _json_object()
     voice = data.get("voice", DEFAULT_VOICE)
     style = data.get("style", DEFAULT_STYLE)
     if voice not in ALL_VOICES:

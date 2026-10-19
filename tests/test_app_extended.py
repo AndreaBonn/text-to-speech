@@ -842,3 +842,29 @@ class TestUppercaseExtension:
         )
 
         assert response.status_code == 400
+
+
+class TestJsonBodyNotAnObject:
+    """A JSON array or string body is invalid input: a JSON error, never a 500 page."""
+
+    @pytest.mark.parametrize("body", [[1], "testo", 3])
+    def test_load_text_non_object_body_is_a_json_422(self, client, body):
+        response = client.post("/api/load-text", json=body, headers={"Accept-Language": "it"})
+
+        assert response.status_code == 422
+        assert response.is_json
+        error = response.get_json()["error"]
+        assert error.startswith("In questo file non ho trovato testo da leggere.")
+
+    def test_load_text_object_body_still_loads(self, client):
+        response = client.post("/api/load-text", json={"text": "Uno.\n\nDue."})
+
+        assert response.status_code == 200
+        assert [p["text"] for p in response.get_json()["paragraphs"]] == ["Uno.", "Due."]
+
+    @pytest.mark.parametrize("body", [[1], "testo"])
+    def test_save_non_object_body_is_a_json_400(self, client, body):
+        response = client.post("/api/save", json=body, headers={"Accept-Language": "it"})
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "Nessun file caricato"}
