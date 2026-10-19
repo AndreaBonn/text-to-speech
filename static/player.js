@@ -1,5 +1,7 @@
 'use strict';
 
+const FLASH_MS = 4000;
+
 /* ============================================================
    TTSPLAYER — classe principale
 ============================================================ */
@@ -53,7 +55,7 @@ class TtsPlayer {
       iconPause:       document.getElementById('icon-pause'),
       labelPlay:       document.getElementById('label-play'),
       voiceSelect:     document.getElementById('voice-select'),
-      styleSelect:     document.getElementById('style-select'),
+      btnPreview:      document.getElementById('btn-preview'),
       fileInput:       document.getElementById('file-input'),
       btnChoose:       document.getElementById('btn-choose'),
       btnPasteToggle:  document.getElementById('btn-paste-toggle'),
@@ -71,6 +73,9 @@ class TtsPlayer {
       saveStatusFill:  document.getElementById('save-status-fill'),
     };
     this._notices = new Notices();
+    this._panel = new VoicePanel();
+    this._dom.styleSelect = this._panel.styles;
+    this._previewAudio = new Audio();
     this._reader = new ReaderView(this._dom.readerText, (idx) => this._playFrom(idx));
 
     this._bindUI();
@@ -90,41 +95,14 @@ class TtsPlayer {
   ---------------------------------------------------------- */
   async _loadVoices() {
     try {
-      const lang = i18nGetLang();
-      const res  = await fetch(`/api/voices?lang=${lang}`);
+      const res  = await fetch(`/api/voices?lang=${i18nGetLang()}`);
       const data = await res.json();
-
-      /* Popola voci */
-      const vSel = this._dom.voiceSelect;
-      const prevVoice = vSel.value;
-      vSel.innerHTML = '';
-      data.voices.forEach(v => {
-        const opt  = document.createElement('option');
-        opt.value  = v.id;
-        opt.textContent = v.label + (v.multilingual ? ' (multi)' : '');
-        opt.dataset.type = v.type;
-        opt.dataset.name = v.label;
-        vSel.appendChild(opt);
-      });
-      vSel.value         = prevVoice || data.default;
-      this.currentVoice  = vSel.value || data.default;
-
-      /* Popola stili */
-      const sSel = this._dom.styleSelect;
-      const prevStyle = sSel.value;
-      sSel.innerHTML = '';
-      data.styles.forEach(s => {
-        const opt  = document.createElement('option');
-        opt.value  = s.id;
-        opt.textContent = s.label;
-        opt.title  = s.description;
-        sSel.appendChild(opt);
-      });
-      sSel.value         = prevStyle || data.default_style;
-      this.currentStyle  = sSel.value || data.default_style;
-
+      const chosen = this._panel.populate(data);
+      this.currentVoice = chosen.voice;
+      this.currentStyle = chosen.style;
       this._updateStyleEnabled();
       this._updateSaveLink();
+      this._refreshPanel();
     } catch (err) {
       console.error('Voice loading error:', err);
     }
@@ -156,9 +134,11 @@ class TtsPlayer {
     /* Style select */
     this._dom.styleSelect.addEventListener('change', () => {
       this.currentStyle = this._dom.styleSelect.value;
-      this._updateSaveLink();
-      this._clearPrefetch();
+      this._panel.rememberStyleChoice(this.currentVoice, this.currentStyle);
+      this._panel.hideAutoStyle();
+      this._afterVoiceOrStyleChange(t('status.styleChanged'));
     });
+    this._dom.btnPreview.addEventListener('click', () => this._preview());
 
     /* Bottoni player */
     this._dom.btnPlay.addEventListener('click', () => {
@@ -297,7 +277,7 @@ class TtsPlayer {
       this._setPlayIconLoading(false);
 
       /* Auto-select stile in base al formato del file */
-      this._applySuggestedStyle(data.suggested_style);
+      this._applySuggestedStyle(data.suggested_style, data.filename);
 
       /* Aggiorna UI */
       this._dom.emptyState.classList.add('hidden');
@@ -559,8 +539,7 @@ class TtsPlayer {
     const hasFile = this.totalCount > 0;
     this._dom.btnPlay.disabled   = !hasFile || state === 'loading';
     this._dom.btnRepeat.disabled = !hasFile;
-    this._dom.playerStatus.textContent =
-      hasFile && state === 'loading' ? t('status.preparing') : '';
+    this._renderStatus();
   }
 
   /** Velocità di riproduzione (R3): vale anche per gli audio caricati dopo */
@@ -625,22 +604,25 @@ class TtsPlayer {
     const opt = this._dom.voiceSelect.selectedOptions[0];
     const isPiper = opt && opt.dataset.type === 'piper';
     this._dom.styleSelect.disabled = isPiper;
-    if (isPiper) {
-      this._dom.styleSelect.value = 'neutro';
-      this.currentStyle = 'neutro';
-    }
+    if (isPiper) this.currentStyle = 'neutro';
+    else this.currentStyle = this._dom.styleSelect.value || this.currentStyle;
   }
 
   /** Imposta lo stile suggerito in base all'estensione del file. */
-  _applySuggestedStyle(suggestedStyle) {
-    if (!suggestedStyle) return;
+  _applySuggestedStyle(suggestedStyle, filename) {
     const opt = this._dom.voiceSelect.selectedOptions[0];
     const isPiper = opt && opt.dataset.type === 'piper';
-    if (isPiper) return;
+    this._panel.hideAutoStyle();
+    if (!suggestedStyle || isPiper || this._panel.userChoseStyle()) return;
+    if (suggestedStyle === this.currentStyle) return;
 
     this._dom.styleSelect.value = suggestedStyle;
     this.currentStyle = suggestedStyle;
     this._updateSaveLink();
+    this._refreshPanel();
+    /* Un cambio di stile che nessuno ha chiesto va dichiarato (R11) */
+    const ext = (/\.[^.]+$/.exec(filename || '') || [''])[0];
+    this._panel.showAutoStyle(suggestedStyle, ext);
   }
 
   /* ----------------------------------------------------------
@@ -743,8 +725,61 @@ class TtsPlayer {
   _applyVoiceChange() {
     this.currentVoice = this._dom.voiceSelect.value;
     this._updateStyleEnabled();
+    this._panel.remember(this.currentVoice, this._dom.styleSelect.value);
+    const name = this._dom.voiceSelect.selectedOptions[0]?.dataset.name || this.currentVoice;
+    this._afterVoiceOrStyleChange(t('status.voiceChanged', { voice: name }));
+  }
+
+  /** Dopo un cambio di voce o stile: durante l'ascolto il paragrafo riparte subito (R12). */
+  _afterVoiceOrStyleChange(message) {
+    const wasPlaying = this._state === 'playing';
     this._updateSaveLink();
     this._clearPrefetch();
+    this._refreshPanel();
+    if (wasPlaying) {
+      this._flashStatus(message);
+      this.repeat();
+    }
+  }
+
+  _refreshPanel() {
+    this._panel.refresh(this.currentVoice, this.currentStyle);
+  }
+
+  /** Messaggio breve nella riga di stato del player, poi sparisce da solo. */
+  _flashStatus(message) {
+    clearTimeout(this._flashTimer);
+    this._flashText = message;
+    this._renderStatus();
+    this._flashTimer = setTimeout(() => { this._flashText = ''; this._renderStatus(); }, FLASH_MS);
+  }
+
+  _renderStatus() {
+    const preparing = this.totalCount > 0 && this._state === 'loading';
+    this._dom.playerStatus.textContent = this._flashText || (preparing ? t('status.preparing') : '');
+  }
+
+  /** Anteprima della voce scelta, anche senza documento (V3). */
+  async _preview() {
+    await this._voicesReady;
+    if (this._state === 'playing') this.pause();
+    const btn = this._dom.btnPreview;
+    btn.disabled = true;
+    try {
+      const params = new URLSearchParams({ voice: this.currentVoice, style: this.currentStyle, lang: i18nGetLang() });
+      const res = await fetch(`/api/preview?${params}`);
+      if (!res.ok) throw await this._apiError(res);
+      const url = URL.createObjectURL(await res.blob());
+      this._previewAudio.src = url;
+      this._previewAudio.onended = () => URL.revokeObjectURL(url);
+      await this._previewAudio.play();
+      this._notices.clear();
+    } catch (err) {
+      this._notices.error(this._messageFor(err, 'msg.synthesisError'),
+        this._fallbackAction(err, 'action.listenWith', () => this._preview()));
+    } finally {
+      btn.disabled = false;
+    }
   }
 }
 

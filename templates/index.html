@@ -38,21 +38,12 @@
 
     <div class="toolbar__sep" aria-hidden="true"></div>
 
-    <!-- Selezione voce -->
-    <div class="voice-wrapper">
-      <label for="voice-select" class="voice-label" data-i18n="toolbar.voice">Voce</label>
-      <select id="voice-select" data-i18n-aria-label="toolbar.voiceAria">
-        <option value="" data-i18n="toolbar.loading">Caricamento...</option>
-      </select>
-    </div>
-
-    <!-- Selezione stile di lettura -->
-    <div class="voice-wrapper">
-      <label for="style-select" class="voice-label" data-i18n="toolbar.style">Stile</label>
-      <select id="style-select" data-i18n-aria-label="toolbar.styleAria">
-        <option value="" data-i18n="toolbar.loading">Caricamento...</option>
-      </select>
-    </div>
+    <!-- Voce e stile: il bottone riassume la scelta e apre il pannello -->
+    <button type="button" id="btn-voice-panel" class="btn-voice"
+            aria-expanded="false" aria-controls="voice-panel">
+      <span class="btn-voice__label" data-i18n="panel.toggle">Voce e stile</span>
+      <span class="btn-voice__summary" id="voice-summary"></span>
+    </button>
 
     <!-- Bottone salva -->
     <button
@@ -79,6 +70,41 @@
       <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
     </div>
   </header>
+
+  <!-- Pannello voce e stile (V1-V7, R13) -->
+  <section id="voice-panel" class="voice-panel hidden" data-i18n-aria-label="panel.toggle">
+    <div class="voice-panel__col">
+      <label for="voice-select" class="panel-label" data-i18n="toolbar.voice">Voce</label>
+      <div class="voice-row">
+        <select id="voice-select">
+          <option value="" data-i18n="toolbar.loading">Caricamento...</option>
+        </select>
+        <button type="button" id="btn-preview" class="btn-secondary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="6,3 20,12 6,21"/>
+          </svg>
+          <span data-i18n="panel.preview">Ascolta un esempio</span>
+        </button>
+      </div>
+      <p class="panel-hint" id="voice-desc"></p>
+      <p class="panel-hint panel-hint--warn hidden" id="voice-offline-note" data-i18n="panel.offline"></p>
+    </div>
+    <fieldset class="voice-panel__col style-group" id="style-group">
+      <legend class="panel-label" data-i18n="panel.style">Stile di lettura</legend>
+      <div class="style-list" id="style-list"></div>
+      <p class="panel-hint hidden" id="style-offline-note"></p>
+    </fieldset>
+    <div class="voice-panel__foot">
+      <p class="panel-hint" data-i18n="panel.remembered"></p>
+      <button type="button" id="btn-voice-done" class="btn-secondary" data-i18n="panel.done">Fatto</button>
+    </div>
+  </section>
+
+  <!-- Stile scelto in automatico dal tipo di file (R11) -->
+  <div id="auto-style-note" class="auto-style hidden" role="status">
+    <span id="auto-style-text"></span>
+    <button type="button" id="btn-auto-style" class="btn-link" data-i18n="style.autoChange">Cambia</button>
+  </div>
 
   <!-- ============================================================
        BANNER ERRORE
@@ -297,6 +323,8 @@
        JAVASCRIPT
   ============================================================ -->
   <script src="{{ url_for('static', filename='i18n.js') }}"></script>
+  <script src="{{ url_for('static', filename='prefs.js') }}"></script>
+  <script src="{{ url_for('static', filename='voice-panel.js') }}"></script>
   <script src="{{ url_for('static', filename='notices.js') }}"></script>
   <script src="{{ url_for('static', filename='reader-view.js') }}"></script>
   <script src="{{ url_for('static', filename='save-mp3.js') }}"></script>
