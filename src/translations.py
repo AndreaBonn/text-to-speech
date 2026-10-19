@@ -5,6 +5,7 @@ Traduzioni backend per messaggi API e label degli stili di lettura.
 
 TRANSLATIONS = {
     "it": {
+        "document.pasted_text": "Testo incollato",
         "error.file_too_large": "File troppo grande (max 50 MB)",
         "error.no_file": "Nessun file inviato",
         "error.unsupported_format": "Formato non supportato. Formati validi: {formats}",
@@ -54,6 +55,7 @@ TRANSLATIONS = {
         },
     },
     "en": {
+        "document.pasted_text": "Pasted text",
         "error.file_too_large": "File too large (max 50 MB)",
         "error.no_file": "No file provided",
         "error.unsupported_format": "Unsupported format. Valid formats: {formats}",

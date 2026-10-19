@@ -160,3 +160,32 @@ class TestVoicePreview:
 
         assert response.status_code == 503
         assert response.get_json()["fallback_voice"] == "paola"
+
+
+class TestLoadPastedText:
+    def test_load_text_returns_paragraphs_like_a_file(self, client):
+        response = client.post("/api/load-text?lang=it", json={"text": "Uno.\n\nDue."})
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["total"] == 2
+        assert [p["text"] for p in data["paragraphs"]] == ["Uno.", "Due."]
+        assert data["filename"] == "Testo incollato"
+
+    def test_load_text_makes_paragraphs_playable(self, client):
+        client.post("/api/load-text", json={"text": "Uno."})
+        with patch("src.app.engine._synthesize_text", return_value=b"mp3"):
+            response = client.get("/api/audio/0?voice=paola")
+
+        assert response.status_code == 200
+
+    def test_load_text_empty_explains_there_is_no_text(self, client):
+        response = client.post("/api/load-text?lang=it", json={"text": "   "})
+
+        assert response.status_code == 422
+        assert "non ho trovato testo" in response.get_json()["error"]
+
+    def test_load_text_without_json_body_is_rejected(self, client):
+        response = client.post("/api/load-text", data="Uno.")
+
+        assert response.status_code == 422

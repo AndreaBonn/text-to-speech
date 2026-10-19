@@ -175,10 +175,27 @@ def api_load():
         tmp_path.unlink(missing_ok=True)
 
     suggested_style = FILE_STYLE_DEFAULTS.get(ext, DEFAULT_STYLE)
+    return _document_response(safe_name, paragraphs, suggested_style)
 
+
+@app.route("/api/load-text", methods=["POST"])
+def api_load_text():
+    """Carica un testo incollato e restituisce i paragrafi."""
+    lang = get_lang(request)
+    data = request.get_json(silent=True) or {}
+    text = data.get("text")
+    name = tr(lang, "document.pasted_text")
+    try:
+        paragraphs = engine.load_text(text if isinstance(text, str) else "", name)
+    except EmptyDocumentError:
+        return jsonify({"error": tr(lang, "error.no_text")}), 422
+    return _document_response(name, paragraphs, DEFAULT_STYLE)
+
+
+def _document_response(name: str, paragraphs: list[str], suggested_style: str):
     return jsonify(
         {
-            "filename": safe_name,
+            "filename": name,
             "total": len(paragraphs),
             "paragraphs": [
                 {"idx": i, "text": p, "chars": len(p)} for i, p in enumerate(paragraphs)
