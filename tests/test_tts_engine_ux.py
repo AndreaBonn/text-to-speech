@@ -371,3 +371,32 @@ class TestPiperFirstLoadConcurrency:
 
         assert not first.is_alive() and not second.is_alive()
         assert rates == [16000, 16000]
+
+
+class TestEdgeTimeoutCancelsSynthesis:
+    """R8: a synthesis abandoned on timeout must not keep running in the async loop."""
+
+    def test_timed_out_edge_synthesis_is_cancelled(self, engine):
+        import concurrent.futures
+
+        started, cancelled = threading.Event(), threading.Event()
+
+        async def never_answers(voice_id, text, rate="+0%", pitch="+0Hz"):
+            import asyncio
+
+            started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+            return b"too late"
+
+        with (
+            patch("src.tts_engine.sintetizza_edge", never_answers),
+            pytest.raises(concurrent.futures.TimeoutError),
+        ):
+            engine._synthesize_text("Ciao", "giuseppe", timeout=0.2)
+
+        assert started.is_set()
+        assert cancelled.wait(5)

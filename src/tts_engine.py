@@ -5,6 +5,7 @@ Importa le funzioni di sintesi da synthesis.py.
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import subprocess
 import threading
@@ -251,7 +252,13 @@ class TTSEngine:
                 sintetizza_edge(voice_id, text, rate=params["rate"], pitch=params["pitch"]),
                 _async_loop,
             )
-            return future.result(timeout=timeout)
+            try:
+                return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                # Without this the coroutine keeps running in the loop: one
+                # abandoned synthesis per timeout (e.g. every failed online probe).
+                future.cancel()
+                raise
 
         # Piper (offline) — carica il modello lazy, stile ignorato
         if self._piper_voice is None:
