@@ -47,6 +47,7 @@ class TtsPlayer {
       btnRepeat:       document.getElementById('btn-repeat'),
       iconPlay:        document.getElementById('icon-play'),
       iconPause:       document.getElementById('icon-pause'),
+      labelPlay:       document.getElementById('label-play'),
       voiceSelect:     document.getElementById('voice-select'),
       styleSelect:     document.getElementById('style-select'),
       fileInput:       document.getElementById('file-input'),
@@ -522,6 +523,7 @@ class TtsPlayer {
 
     this._dom.btnPlay.setAttribute('aria-label',
       isPlaying ? t('player.pauseAria') : t('player.playAria'));
+    this._dom.labelPlay.textContent = isPlaying ? t('label.pause') : t('label.listen');
   }
 
   _setPlayIconLoading(loading) {

@@ -8,6 +8,9 @@
 const I18N_TRANSLATIONS = {
   it: {
     /* Toolbar */
+    'app.title':                'Lettore ad alta voce',
+    'toolbar.lang':             'Lingua dei menu',
+    'toolbar.langAria':         'Lingua dei menu (non cambia la voce)',
     'toolbar.chooseFile':       'Scegli file',
     'toolbar.chooseFileAria':   'Scegli file da leggere',
     'toolbar.voice':            'Voce',
@@ -39,31 +42,32 @@ const I18N_TRANSLATIONS = {
     'player.startTitle':        'Vai al primo paragrafo',
     'player.prevAria':          'Paragrafo precedente',
     'player.prevTitle':         'Paragrafo precedente (freccia sinistra)',
-    'player.playAria':          'Riproduci',
+    'player.playAria':          'Ascolta',
     'player.pauseAria':         'Pausa',
-    'player.playTitle':         'Riproduci / Pausa (Spazio)',
+    'player.playTitle':         'Ascolta / Pausa (Spazio)',
     'player.loadingAria':       'Caricamento audio...',
     'player.stopAria':          'Stop',
     'player.stopTitle':         'Stop e torna al primo paragrafo',
     'player.nextAria':          'Paragrafo successivo',
     'player.nextTitle':         'Paragrafo successivo (freccia destra)',
-    'player.repeatAria':        'Ripeti paragrafo',
-    'player.repeatTitle':       'Ripeti paragrafo corrente (R)',
+    'player.repeatAria':        'Riascolta il paragrafo',
+    'player.repeatTitle':       'Riascolta il paragrafo dall\'inizio (R)',
 
     /* Control labels */
-    'label.start':              'Inizio',
-    'label.prev':               'Prec.',
-    'label.playPause':          'Play / Pausa',
+    'label.start':              'Dall\'inizio',
+    'label.prev':               'Indietro',
+    'label.listen':             'Ascolta',
+    'label.pause':              'Pausa',
     'label.stop':               'Stop',
-    'label.next':               'Succ.',
-    'label.repeat':             'Ripeti',
+    'label.next':               'Avanti',
+    'label.repeat':             'Riascolta',
 
     /* Keyboard hints */
     'kbd.space':                'Spazio',
-    'kbd.playPause':            'Play/Pausa',
-    'kbd.prev':                 'Precedente',
-    'kbd.next':                 'Successivo',
-    'kbd.repeat':               'Ripeti',
+    'kbd.playPause':            'Ascolta/Pausa',
+    'kbd.prev':                 'Indietro',
+    'kbd.next':                 'Avanti',
+    'kbd.repeat':               'Riascolta',
     'kbd.aria':                 'Scorciatoie da tastiera disponibili',
 
     /* Dynamic messages (player.js) */
@@ -77,6 +81,9 @@ const I18N_TRANSLATIONS = {
 
   en: {
     /* Toolbar */
+    'app.title':                'Read Aloud',
+    'toolbar.lang':             'Menu language',
+    'toolbar.langAria':         'Menu language (does not change the voice)',
     'toolbar.chooseFile':       'Choose file',
     'toolbar.chooseFileAria':   'Choose a file to read',
     'toolbar.voice':            'Voice',
@@ -108,31 +115,32 @@ const I18N_TRANSLATIONS = {
     'player.startTitle':        'Go to first paragraph',
     'player.prevAria':          'Previous paragraph',
     'player.prevTitle':         'Previous paragraph (left arrow)',
-    'player.playAria':          'Play',
+    'player.playAria':          'Listen',
     'player.pauseAria':         'Pause',
-    'player.playTitle':         'Play / Pause (Space)',
+    'player.playTitle':         'Listen / Pause (Space)',
     'player.loadingAria':       'Loading audio...',
     'player.stopAria':          'Stop',
     'player.stopTitle':         'Stop and go to first paragraph',
     'player.nextAria':          'Next paragraph',
     'player.nextTitle':         'Next paragraph (right arrow)',
-    'player.repeatAria':        'Repeat paragraph',
-    'player.repeatTitle':       'Repeat current paragraph (R)',
+    'player.repeatAria':        'Replay paragraph',
+    'player.repeatTitle':       'Replay the paragraph from the start (R)',
 
     /* Control labels */
-    'label.start':              'Start',
-    'label.prev':               'Prev',
-    'label.playPause':          'Play / Pause',
+    'label.start':              'From start',
+    'label.prev':               'Back',
+    'label.listen':             'Listen',
+    'label.pause':              'Pause',
     'label.stop':               'Stop',
     'label.next':               'Next',
-    'label.repeat':             'Repeat',
+    'label.repeat':             'Replay',
 
     /* Keyboard hints */
     'kbd.space':                'Space',
-    'kbd.playPause':            'Play/Pause',
-    'kbd.prev':                 'Previous',
+    'kbd.playPause':            'Listen/Pause',
+    'kbd.prev':                 'Back',
     'kbd.next':                 'Next',
-    'kbd.repeat':               'Repeat',
+    'kbd.repeat':               'Replay',
     'kbd.aria':                 'Available keyboard shortcuts',
 
     /* Dynamic messages (player.js) */

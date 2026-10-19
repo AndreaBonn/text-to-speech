@@ -148,7 +148,7 @@ body {
 
 .voice-label {
   font-size: 0.75rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -182,9 +182,17 @@ body {
 /* Language switcher */
 .lang-switcher {
   display: flex;
+  align-items: center;
   gap: 2px;
   margin-left: auto;
   flex-shrink: 0;
+}
+
+.lang-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-right: 8px;
+  white-space: nowrap;
 }
 
 .lang-btn {
@@ -356,8 +364,8 @@ body {
 }
 
 .empty-sub {
-  font-size: 0.8rem;
-  color: var(--text-dim);
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .paragraph-text {
@@ -420,8 +428,8 @@ body {
 }
 
 .progress-counter {
-  font-size: 0.72rem;
-  color: var(--text-dim);
+  font-size: 0.8rem;
+  color: var(--text-muted);
   white-space: nowrap;
   min-width: 100px;
   text-align: right;
@@ -432,7 +440,7 @@ body {
 /* Player controls */
 .player-controls {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
@@ -471,9 +479,19 @@ body {
   transform: scale(0.97);
 }
 
+/* Disabled controls read as outlines, so they never look pressable */
 .player-btn:disabled {
-  opacity: 0.25;
+  background-color: transparent;
+  border: 1px dashed var(--border-hover);
+  color: var(--text-dim);
+  opacity: 0.6;
   cursor: not-allowed;
+}
+
+.player-btn--play:disabled {
+  background-color: var(--btn-bg);
+  color: var(--text-dim);
+  box-shadow: none;
 }
 
 .player-btn:focus-visible {
@@ -524,37 +542,30 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* Etichette bottoni */
-.controls-labels {
+/* Colonna bottone + etichetta */
+.ctrl {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 64px;
 }
 
 .ctrl-label {
-  font-size: 0.6rem;
-  color: var(--text-dim);
+  font-size: 0.7rem;
+  color: var(--text-muted);
   text-align: center;
-  width: 48px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  opacity: 0.7;
-}
-
-.ctrl-label--play {
-  width: 64px;
+  white-space: nowrap;
 }
 
 /* Keyboard hint */
 .keyboard-hint {
   text-align: center;
-  font-size: 0.68rem;
-  color: var(--text-dim);
+  font-size: 0.72rem;
+  color: var(--text-muted);
   margin-top: 12px;
-  opacity: 0.6;
 }
 
 .kbd {
@@ -617,13 +628,12 @@ body {
     height: 56px;
   }
 
-  .ctrl-label {
-    width: 44px;
-    font-size: 0.55rem;
+  .ctrl {
+    min-width: 0;
   }
 
-  .ctrl-label--play {
-    width: 56px;
+  .ctrl-label {
+    font-size: 0.62rem;
   }
 
   .keyboard-hint {
@@ -636,9 +646,6 @@ body {
     gap: 6px;
   }
 
-  .controls-labels {
-    gap: 6px;
-  }
 }
 
 /* ============================================================

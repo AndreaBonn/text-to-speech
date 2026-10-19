@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TTS Reader</title>
+  <title data-i18n="app.title">Lettore ad alta voce</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
        TOOLBAR
   ============================================================ -->
   <header class="toolbar" role="banner">
-    <span class="toolbar__brand" aria-hidden="true">TTS Reader</span>
+    <span class="toolbar__brand" aria-hidden="true" data-i18n="app.title">Lettore ad alta voce</span>
     <div class="toolbar__sep" aria-hidden="true"></div>
 
     <!-- File picker -->
@@ -73,7 +73,8 @@
     </button>
 
     <!-- Language switcher -->
-    <div class="lang-switcher" role="group" aria-label="Language">
+    <div class="lang-switcher" role="group" data-i18n-aria-label="toolbar.langAria">
+      <span class="lang-label" aria-hidden="true" data-i18n="toolbar.lang">Lingua dei menu</span>
       <button class="lang-btn lang-btn--active" data-lang="it" aria-pressed="true">IT</button>
       <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
     </div>
@@ -167,121 +168,91 @@
       </div>
     </div>
 
-    <!-- Bottoni player -->
+    <!-- Bottoni player: ogni etichetta sta sotto il proprio bottone -->
     <div class="player-controls" role="group" data-i18n-aria-label="player.controlsAria">
 
-      <!-- Inizio -->
-      <button
-        class="player-btn"
-        id="btn-start"
-        data-i18n-aria-label="player.startAria"
-        data-i18n-title="player.startTitle"
-        disabled
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <rect x="5" y="5" width="2" height="14" rx="1"/>
-          <polygon points="8,12 20,5 20,19"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn" id="btn-start" type="button"
+                data-i18n-aria-label="player.startAria" data-i18n-title="player.startTitle" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="5" y="5" width="2" height="14" rx="1"/>
+            <polygon points="8,12 20,5 20,19"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.start">Dall'inizio</span>
+      </div>
 
-      <!-- Precedente -->
-      <button
-        class="player-btn"
-        id="btn-prev"
-        data-i18n-aria-label="player.prevAria"
-        data-i18n-title="player.prevTitle"
-        disabled
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <polygon points="19,5 7,12 19,19"/>
-          <polygon points="11,5 5,8.5 5,15.5 11,19"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn" id="btn-prev" type="button"
+                data-i18n-aria-label="player.prevAria" data-i18n-title="player.prevTitle" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="19,5 7,12 19,19"/>
+            <polygon points="11,5 5,8.5 5,15.5 11,19"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.prev">Indietro</span>
+      </div>
 
-      <!-- Play / Pausa -->
-      <button
-        class="player-btn player-btn--play"
-        id="btn-play"
-        data-i18n-aria-label="player.playAria"
-        data-i18n-title="player.playTitle"
-        disabled
-      >
-        <!-- Icona Play -->
-        <svg id="icon-play" width="26" height="26" viewBox="0 0 24 24"
-             fill="currentColor" aria-hidden="true">
-          <polygon points="6,3 20,12 6,21"/>
-        </svg>
-        <!-- Icona Pausa (nascosta) -->
-        <svg id="icon-pause" width="26" height="26" viewBox="0 0 24 24"
-             fill="currentColor" aria-hidden="true" class="hidden">
-          <rect x="6" y="4" width="4" height="16" rx="1"/>
-          <rect x="14" y="4" width="4" height="16" rx="1"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn player-btn--play" id="btn-play" type="button"
+                data-i18n-aria-label="player.playAria" data-i18n-title="player.playTitle" disabled>
+          <svg id="icon-play" width="26" height="26" viewBox="0 0 24 24"
+               fill="currentColor" aria-hidden="true">
+            <polygon points="6,3 20,12 6,21"/>
+          </svg>
+          <svg id="icon-pause" width="26" height="26" viewBox="0 0 24 24"
+               fill="currentColor" aria-hidden="true" class="hidden">
+            <rect x="6" y="4" width="4" height="16" rx="1"/>
+            <rect x="14" y="4" width="4" height="16" rx="1"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" id="label-play">Ascolta</span>
+      </div>
 
-      <!-- Stop -->
-      <button
-        class="player-btn"
-        id="btn-stop"
-        data-i18n-aria-label="player.stopAria"
-        data-i18n-title="player.stopTitle"
-        disabled
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <rect x="5" y="5" width="14" height="14" rx="2"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn" id="btn-stop" type="button"
+                data-i18n-aria-label="player.stopAria" data-i18n-title="player.stopTitle" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="5" y="5" width="14" height="14" rx="2"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.stop">Stop</span>
+      </div>
 
-      <!-- Successivo -->
-      <button
-        class="player-btn"
-        id="btn-next"
-        data-i18n-aria-label="player.nextAria"
-        data-i18n-title="player.nextTitle"
-        disabled
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <polygon points="5,5 17,12 5,19"/>
-          <polygon points="13,5 19,8.5 19,15.5 13,19"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn" id="btn-next" type="button"
+                data-i18n-aria-label="player.nextAria" data-i18n-title="player.nextTitle" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <polygon points="5,5 17,12 5,19"/>
+            <polygon points="13,5 19,8.5 19,15.5 13,19"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.next">Avanti</span>
+      </div>
 
-      <!-- Ripeti -->
-      <button
-        class="player-btn"
-        id="btn-repeat"
-        data-i18n-aria-label="player.repeatAria"
-        data-i18n-title="player.repeatTitle"
-        disabled
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2" stroke-linecap="round"
-             stroke-linejoin="round" aria-hidden="true">
-          <polyline points="17 1 21 5 17 9"/>
-          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-          <polyline points="7 23 3 19 7 15"/>
-          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-        </svg>
-      </button>
+      <div class="ctrl">
+        <button class="player-btn" id="btn-repeat" type="button"
+                data-i18n-aria-label="player.repeatAria" data-i18n-title="player.repeatTitle" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true">
+            <polyline points="17 1 21 5 17 9"/>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+            <polyline points="7 23 3 19 7 15"/>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          </svg>
+        </button>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.repeat">Riascolta</span>
+      </div>
 
-    </div>
-
-    <!-- Etichette -->
-    <div class="controls-labels" aria-hidden="true">
-      <span class="ctrl-label" data-i18n="label.start">Inizio</span>
-      <span class="ctrl-label" data-i18n="label.prev">Prec.</span>
-      <span class="ctrl-label ctrl-label--play" data-i18n="label.playPause">Play / Pausa</span>
-      <span class="ctrl-label" data-i18n="label.stop">Stop</span>
-      <span class="ctrl-label" data-i18n="label.next">Succ.</span>
-      <span class="ctrl-label" data-i18n="label.repeat">Ripeti</span>
     </div>
 
     <!-- Keyboard hint -->
     <p class="keyboard-hint" data-i18n-aria-label="kbd.aria">
-      <kbd class="kbd" data-i18n="kbd.space">Spazio</kbd> <span data-i18n="kbd.playPause">Play/Pausa</span> &nbsp;
-      <kbd class="kbd">&larr;</kbd> <span data-i18n="kbd.prev">Precedente</span> &nbsp;
-      <kbd class="kbd">&rarr;</kbd> <span data-i18n="kbd.next">Successivo</span> &nbsp;
-      <kbd class="kbd">R</kbd> <span data-i18n="kbd.repeat">Ripeti</span>
+      <kbd class="kbd" data-i18n="kbd.space">Spazio</kbd> <span data-i18n="kbd.playPause">Ascolta/Pausa</span> &nbsp;
+      <kbd class="kbd">&larr;</kbd> <span data-i18n="kbd.prev">Indietro</span> &nbsp;
+      <kbd class="kbd">&rarr;</kbd> <span data-i18n="kbd.next">Avanti</span> &nbsp;
+      <kbd class="kbd">R</kbd> <span data-i18n="kbd.repeat">Riascolta</span>
     </p>
 
   </footer>
