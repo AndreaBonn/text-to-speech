@@ -7,7 +7,8 @@ Complementa test_app.py (che copre validazione input e error cases).
 """
 
 import io
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -114,11 +115,8 @@ class TestSanitizeFilename:
 
     def test_path_traversal_bloccato(self):
         """Tentativi di path traversal devono essere neutralizzati."""
-        # Il path traversal viene bloccato da PurePosixPath.name
-        risultato = self._sanitize("../../../etc/passwd.md")
-        # Deve estrarre solo il nome base
-        assert "/" not in risultato
-        assert ".." not in risultato
+        # SECURITY.md: il nome base viene estratto, il percorso scartato
+        assert self._sanitize("../../../etc/passwd.md") == "passwd.md"
 
     def test_filename_vuoto_rifiutato(self):
         """Un nome vuoto deve essere rifiutato."""
@@ -343,12 +341,9 @@ class TestLoadEndpointSecurity:
             content_type="multipart/form-data",
         )
 
-        # Assert — potrebbe essere accettato (nome base estratto) o rifiutato
-        # L'importante è che il path traversal sia neutralizzato
-        if response.status_code == 200:
-            data = response.get_json()
-            assert "/" not in data["filename"]
-            assert ".." not in data["filename"]
+        # Assert — SECURITY.md: viene tenuto solo il nome base
+        assert response.status_code == 200
+        assert response.get_json()["filename"] == "passwd.md"
 
     def test_load_filename_con_null_byte_rifiutato(self, client):
         """Un file con null byte nel nome deve essere rifiutato."""
@@ -540,3 +535,277 @@ class TestSaveInvalidStyle:
         # Assert
         assert response.status_code == 400
         assert "error" in response.get_json()
+
+
+# ===========================================================================
+# Test — Content-Security-Policy (SECURITY.md § Content Security Policy)
+# ===========================================================================
+
+EXPECTED_CSP = {
+    "default-src": ["'self'"],
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "https://fonts.googleapis.com"],
+    "font-src": ["https://fonts.gstatic.com"],
+    "media-src": ["'self'", "blob:"],
+    "base-uri": ["'self'"],
+    "object-src": ["'none'"],
+    "form-action": ["'self'"],
+}
+
+
+def _parse_csp(header: str) -> dict[str, list[str]]:
+    directives = {}
+    for part in header.split(";"):
+        tokens = part.split()
+        if tokens:
+            directives[tokens[0]] = tokens[1:]
+    return directives
+
+
+class TestContentSecurityPolicy:
+    @pytest.mark.parametrize(
+        "method, url",
+        [
+            ("get", "/"),
+            ("get", "/api/voices"),
+            ("get", "/api/audio/0"),  # 400: nessun documento caricato
+            ("post", "/api/load"),  # 400: nessun file inviato
+        ],
+    )
+    def test_csp_has_exactly_the_documented_directives(self, client, method, url):
+        response = getattr(client, method)(url)
+
+        assert _parse_csp(response.headers["Content-Security-Policy"]) == EXPECTED_CSP
+
+    def test_error_responses_in_the_parametrization_are_400(self, client):
+        assert client.get("/api/audio/0").status_code == 400
+        assert client.post("/api/load").status_code == 400
+
+
+# ===========================================================================
+# Test — indici dei paragrafi, stima durata
+# ===========================================================================
+
+
+class TestParagraphIndexes:
+    def test_load_numbers_paragraphs_from_zero(self, client):
+        with patch("src.app.engine.load_file", return_value=["Uno.", "Due.", "Tre."]):
+            response = client.post(
+                "/api/load",
+                data={"file": (io.BytesIO(b"x"), "tre.md")},
+                content_type="multipart/form-data",
+            )
+
+        assert [p["idx"] for p in response.get_json()["paragraphs"]] == [0, 1, 2]
+
+    def test_load_text_numbers_paragraphs_from_zero(self, client):
+        response = client.post("/api/load-text", json={"text": "Uno.\n\nDue.\n\nTre."})
+
+        assert [p["idx"] for p in response.get_json()["paragraphs"]] == [0, 1, 2]
+
+
+class TestEstimatedSeconds:
+    @pytest.mark.parametrize(
+        "chars, seconds",
+        [(15, 1), (16, 2), (30, 2), (31, 3)],
+    )
+    def test_estimate_rounds_up_to_whole_seconds(self, client, chars, seconds):
+        # README/config: 15 characters per second, shown as "circa"
+        data = client.post("/api/load-text", json={"text": "a" * chars}).get_json()
+
+        assert data["estimated_seconds"] == seconds
+
+
+# ===========================================================================
+# Test — _sanitize_filename: caratteri vietati e ammessi
+# ===========================================================================
+
+
+class TestSanitizeFilenameCharacters:
+    @pytest.mark.parametrize("char", list('&\\<>*?%"|'))
+    def test_forbidden_character_is_rejected(self, char):
+        from src.app import _sanitize_filename
+
+        assert _sanitize_filename(f"a{char}b.md") == ""
+
+    @pytest.mark.parametrize("name", ["c++.md", "documento (1).pdf", "l'arte.epub"])
+    def test_allowed_character_names_pass_unchanged(self, name):
+        from src.app import _sanitize_filename
+
+        assert _sanitize_filename(name) == name
+
+    def test_name_without_a_dot_before_the_extension_is_rejected(self):
+        from src.app import _sanitize_filename
+
+        assert _sanitize_filename("notaxmd") == ""
+
+
+# ===========================================================================
+# Test — stile suggerito, stile passato al motore
+# ===========================================================================
+
+
+class TestSuggestedStyle:
+    @pytest.mark.parametrize(
+        "name, style",
+        [
+            ("libro.epub", "audiolibro"),
+            ("nota.md", "notiziario"),
+            ("pagina.html", "notiziario"),
+            ("pagina.htm", "notiziario"),
+            ("nota.txt", "neutro"),
+            ("report.pdf", "neutro"),
+            ("documento.docx", "neutro"),
+        ],
+    )
+    def test_load_suggests_the_style_documented_for_the_format(self, client, name, style):
+        # README: EPUB -> Audiobook, Markdown/HTML -> Newscast, other formats -> Neutral
+        with patch("src.app.engine.load_file", return_value=["Testo."]):
+            response = client.post(
+                "/api/load",
+                data={"file": (io.BytesIO(b"x"), name)},
+                content_type="multipart/form-data",
+            )
+
+        assert response.get_json()["suggested_style"] == style
+
+    def test_load_text_suggests_neutral(self, client):
+        data = client.post("/api/load-text", json={"text": "Testo."}).get_json()
+
+        assert data["suggested_style"] == "neutro"
+
+
+class TestStylePassedToEngine:
+    def test_audio_passes_the_requested_style(self, client_con_testo):
+        from src import app as flask_app
+
+        with patch.object(flask_app.engine, "get_audio", return_value=b"mp3") as mock:
+            client_con_testo.get("/api/audio/1?voice=isabella&style=lento")
+
+        mock.assert_called_once_with(1, "isabella", "lento")
+
+    def test_prefetch_passes_the_requested_style(self, client_con_testo):
+        from src import app as flask_app
+
+        with patch.object(flask_app.engine, "prefetch") as mock:
+            client_con_testo.get("/api/prefetch/2?voice=paola&style=audiolibro")
+
+        mock.assert_called_once_with(2, "paola", "audiolibro")
+
+    def test_preview_synthesizes_with_the_requested_voice_and_style(self, client):
+        from src import app as flask_app
+
+        with patch.object(flask_app.engine, "_synthesize_text", return_value=b"mp3") as synth:
+            client.get("/api/preview?voice=isabella&style=lento")
+
+        synth.assert_called_once_with(
+            "Ciao, sono Isabella. Posso leggere ad alta voce i tuoi documenti.",
+            "isabella",
+            "lento",
+        )
+
+    def test_preview_invalid_style_is_rejected_without_synthesis(self, client):
+        from src import app as flask_app
+
+        with patch.object(flask_app.engine, "_synthesize_text", return_value=b"mp3") as synth:
+            response = client.get("/api/preview?voice=isabella&style=nonexistent&lang=it")
+
+        assert response.status_code == 400
+        assert response.get_json() == {"error": "Stile 'nonexistent' non valido"}
+        synth.assert_not_called()
+
+    def test_save_passes_voice_and_style_in_the_right_order(self, client_con_testo):
+        from src import app as flask_app
+
+        with patch.object(flask_app.engine, "save_all", return_value=b"mp3") as mock:
+            response = client_con_testo.post(
+                "/api/save", json={"voice": "paola", "style": "audiolibro"}
+            )
+
+        assert response.status_code == 200
+        mock.assert_called_once_with("paola", "audiolibro", on_progress=ANY)
+
+
+# ===========================================================================
+# Test — file temporaneo di /api/load
+# ===========================================================================
+
+
+class TestLoadTempFileCleanup:
+    def _upload(self, client):
+        return client.post(
+            "/api/load",
+            data={"file": (io.BytesIO(b"x"), "nota.md")},
+            content_type="multipart/form-data",
+        )
+
+    def _recording_load(self, seen, result=None, error=None):
+        def fake_load_file(path, display_name=None):
+            seen["path"] = Path(path)
+            seen["existed_during"] = Path(path).exists()
+            if error is not None:
+                raise error
+            return result
+
+        return fake_load_file
+
+    def test_temp_file_exists_during_conversion_and_is_removed_after_success(self, client):
+        seen = {}
+
+        with patch("src.app.engine.load_file", side_effect=self._recording_load(seen, ["Ok."])):
+            response = self._upload(client)
+
+        assert response.status_code == 200
+        assert seen["existed_during"] is True
+        assert not seen["path"].exists()
+
+    def test_temp_file_is_removed_after_failed_conversion(self, client):
+        seen = {}
+        load = self._recording_load(seen, error=RuntimeError("corrupt"))
+
+        with patch("src.app.engine.load_file", side_effect=load):
+            response = self._upload(client)
+
+        assert response.status_code == 422
+        assert seen["existed_during"] is True
+        assert not seen["path"].exists()
+
+
+# ===========================================================================
+# Test — configurazione e metadati voci (README, SECURITY.md)
+# ===========================================================================
+
+
+class TestAppConfiguration:
+    def test_upload_limit_is_50_megabytes(self):
+        from src.app import app
+
+        assert app.config["MAX_CONTENT_LENGTH"] == 52428800
+
+    def test_voices_endpoint_reports_default_style_and_style_ids(self, client):
+        data = client.get("/api/voices").get_json()
+
+        assert data["default_style"] == "neutro"
+        assert [s["id"] for s in data["styles"]] == [
+            "neutro",
+            "notiziario",
+            "audiolibro",
+            "lento",
+        ]
+
+    @pytest.mark.parametrize(
+        "voice_id, expected",
+        [
+            ("giuseppe", {"type": "edge", "gender": "M", "lang": "it", "multilingual": True}),
+            ("isabella", {"type": "edge", "gender": "F", "lang": "it", "multilingual": False}),
+            ("andrew", {"type": "edge", "gender": "M", "lang": "en", "multilingual": True}),
+            ("ryan", {"type": "edge", "gender": "M", "lang": "en", "multilingual": False}),
+            ("paola", {"type": "piper", "gender": "F", "lang": "it", "multilingual": False}),
+        ],
+    )
+    def test_voices_meta_matches_the_readme_table(self, voice_id, expected):
+        from src.app import VOICES_META
+
+        meta = next(v for v in VOICES_META if v["id"] == voice_id)
+
+        assert meta == {"id": voice_id, "label": voice_id.capitalize(), **expected}

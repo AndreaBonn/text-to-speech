@@ -9,7 +9,6 @@ per garantire test isolati e veloci.
 import io
 import tempfile
 import threading
-import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -243,13 +242,12 @@ class TestSaveEndpoint:
             "/api/save",
             data='{"voice": "giuseppe"}',
             content_type="application/json",
+            headers={"Accept-Language": "it"},
         )
 
         # Assert
         assert response.status_code == 400
-        data = response.get_json()
-        assert data["error"]  # messaggio non vuoto
-        assert "caricato" in data["error"] or "loaded" in data["error"]
+        assert response.get_json() == {"error": "Nessun file caricato"}
 
 
 # ===========================================================================
@@ -367,11 +365,18 @@ class TestSynthesize:
         engine.load_text("Testo di test.", "test.md")
         fake_mp3 = b"ID3\x00fake_edge_mp3"
 
-        with patch("src.tts_engine.asyncio.run_coroutine_threadsafe") as mock_rcs:
-            mock_future = MagicMock()
-            mock_future.result.return_value = fake_mp3
-            mock_rcs.return_value = mock_future
+        mock_future = MagicMock()
+        mock_future.result.return_value = fake_mp3
 
+        def fake_run_coroutine_threadsafe(coro, loop):
+            # The real scheduler would await it: close it so it is never left pending.
+            coro.close()
+            return mock_future
+
+        with patch(
+            "src.tts_engine.asyncio.run_coroutine_threadsafe",
+            side_effect=fake_run_coroutine_threadsafe,
+        ) as mock_rcs:
             # Act
             result = engine._synthesize(0, "giuseppe")
 
@@ -442,14 +447,18 @@ class TestPrefetchLogging:
         # Arrange
         engine.load_text("Paragrafo test.", "test.md")
 
+        warned = threading.Event()
+
         with (
             patch.object(engine, "_synthesize", side_effect=RuntimeError("boom")),
             patch("src.tts_engine.log") as mock_log,
         ):
+            mock_log.warning.side_effect = lambda *args, **kwargs: warned.set()
+
             # Act
             engine.prefetch(0, "giuseppe")
-            # Attendi che il thread pool esegua il task
-            time.sleep(0.5)
+            # Wait for the condition (the warning), not for a guessed duration
+            assert warned.wait(timeout=5), "prefetch never logged the failure"
 
         # Assert
         mock_log.warning.assert_called_once()
@@ -471,21 +480,6 @@ class TestSaveEndpointPost:
 
         # Assert
         assert response.status_code == 405
-
-    def test_save_post_no_file_loaded(self, client):
-        """POST /api/save senza file caricato deve restituire 400."""
-        # Act
-        response = client.post(
-            "/api/save",
-            data='{"voice": "giuseppe"}',
-            content_type="application/json",
-        )
-
-        # Assert
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data["error"]
-        assert "caricato" in data["error"] or "loaded" in data["error"]
 
     def test_save_post_invalid_voice(self, client):
         """POST /api/save con voce invalida deve restituire 400."""
