@@ -62,9 +62,10 @@ class TestSaveProgress:
 class TestOnlineProbeCacheDuration:
     def test_failed_probe_is_retried_after_a_short_time(self, engine):
         with (
-            patch("src.tts_engine.time.monotonic", side_effect=[1000.0, 1031.0]),
+            patch("src.tts_engine.time") as clock,
             patch.object(engine, "_synthesize_text", side_effect=[OSError("timeout"), b"mp3"]),
         ):
+            clock.monotonic.side_effect = [1000.0, 1031.0]
             first = engine.is_online_available()
             second = engine.is_online_available()
 
@@ -72,9 +73,10 @@ class TestOnlineProbeCacheDuration:
 
     def test_successful_probe_is_kept_for_minutes(self, engine):
         with (
-            patch("src.tts_engine.time.monotonic", side_effect=[1000.0, 1031.0]),
+            patch("src.tts_engine.time") as clock,
             patch.object(engine, "_synthesize_text", return_value=b"mp3") as synth,
         ):
+            clock.monotonic.side_effect = [1000.0, 1299.0]
             engine.is_online_available()
             engine.is_online_available()
 
