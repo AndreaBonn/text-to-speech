@@ -210,3 +210,32 @@ class TestLoadFileDisplayName:
             engine.load_file(Path("upload_8f3a.txt"), display_name="relazione.pdf")
 
         assert engine.filename == "relazione.pdf"
+
+
+class TestEdgeReturnsNoAudio:
+    """Edge that answers without audio: an error, never a silent cached MP3."""
+
+    @staticmethod
+    def _edge_without_audio():
+        modulo = MagicMock()
+
+        async def stream():
+            yield {"type": "WordBoundary", "offset": 0}
+
+        modulo.Communicate.return_value.stream = stream
+        return modulo
+
+    def test_get_audio_raises_and_caches_nothing(self, engine):
+        engine.load_text("Uno.", "x.txt")
+
+        with (
+            patch.dict("sys.modules", {"edge_tts": self._edge_without_audio()}),
+            pytest.raises(RuntimeError, match="no audio"),
+        ):
+            engine.get_audio(0, "giuseppe")
+
+        assert engine._cache == {}
+
+    def test_probe_reports_offline(self, engine):
+        with patch.dict("sys.modules", {"edge_tts": self._edge_without_audio()}):
+            assert engine.is_online_available() is False

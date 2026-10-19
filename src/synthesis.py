@@ -78,6 +78,10 @@ def sintetizza_piper(voce_piper, testo: str, sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+class EdgeNoAudioError(RuntimeError):
+    """Edge TTS answered without any audio chunk."""
+
+
 async def sintetizza_edge(
     voice_id: str,
     testo: str,
@@ -101,6 +105,12 @@ async def sintetizza_edge(
     -------
     bytes
         Audio MP3 in memoria.
+
+    Raises
+    ------
+    EdgeNoAudioError
+        Se Edge chiude lo stream senza inviare audio: un MP3 vuoto finirebbe
+        in cache come se fosse valido e il player resterebbe muto.
     """
     import edge_tts
 
@@ -109,4 +119,6 @@ async def sintetizza_edge(
     async for chunk in comm.stream():
         if chunk["type"] == "audio":
             buf.write(chunk["data"])
+    if not buf.getvalue():
+        raise EdgeNoAudioError(f"Edge TTS returned no audio for voice {voice_id}")
     return buf.getvalue()

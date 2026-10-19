@@ -117,13 +117,7 @@ class TestSintetizzaEdge:
         """Deve passare rate e pitch a edge_tts.Communicate."""
         from src.synthesis import sintetizza_edge
 
-        mock_edge = self._make_mock_edge([])
-
-        async def empty_stream():
-            return
-            yield
-
-        mock_edge.Communicate.return_value.stream = empty_stream
+        mock_edge = self._make_mock_edge([{"type": "audio", "data": b"mp3"}])
 
         with patch.dict("sys.modules", {"edge_tts": mock_edge}):
             _run_async(sintetizza_edge("it-IT-GiuseppeNeural", "Test", rate="+13%", pitch="-3Hz"))
@@ -132,8 +126,8 @@ class TestSintetizzaEdge:
             "Test", "it-IT-GiuseppeNeural", rate="+13%", pitch="-3Hz"
         )
 
-    def test_nessun_chunk_audio_restituisce_vuoto(self):
-        """Se lo stream non contiene chunk audio, restituisce bytes vuoti."""
+    def test_nessun_chunk_audio_solleva_errore(self):
+        """Uno stream senza audio è un guasto di Edge, non un MP3 valido."""
         from src.synthesis import sintetizza_edge
 
         mock_edge = self._make_mock_edge(
@@ -142,10 +136,11 @@ class TestSintetizzaEdge:
             ]
         )
 
-        with patch.dict("sys.modules", {"edge_tts": mock_edge}):
-            risultato = _run_async(sintetizza_edge("it-IT-IsabellaNeural", "Vuoto"))
-
-        assert risultato == b""
+        with (
+            patch.dict("sys.modules", {"edge_tts": mock_edge}),
+            pytest.raises(RuntimeError, match="no audio"),
+        ):
+            _run_async(sintetizza_edge("it-IT-IsabellaNeural", "Vuoto"))
 
 
 # ===========================================================================
