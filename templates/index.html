@@ -234,16 +234,6 @@
       </div>
 
       <div class="ctrl">
-        <button class="player-btn" id="btn-stop" type="button"
-                data-i18n-aria-label="player.stopAria" data-i18n-title="player.stopTitle" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <rect x="5" y="5" width="14" height="14" rx="2"/>
-          </svg>
-        </button>
-        <span class="ctrl-label" aria-hidden="true" data-i18n="label.stop">Stop</span>
-      </div>
-
-      <div class="ctrl">
         <button class="player-btn" id="btn-next" type="button"
                 data-i18n-aria-label="player.nextAria" data-i18n-title="player.nextTitle" disabled>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -269,7 +259,21 @@
         <span class="ctrl-label" aria-hidden="true" data-i18n="label.repeat">Riascolta</span>
       </div>
 
+      <!-- Velocità di lettura (R3) -->
+      <div class="ctrl ctrl--speed">
+        <select id="speed-select" class="speed-select" data-i18n-aria-label="player.speedAria">
+          <option value="0.75">0,75&times;</option>
+          <option value="1" selected>1&times;</option>
+          <option value="1.25">1,25&times;</option>
+          <option value="1.5">1,5&times;</option>
+        </select>
+        <span class="ctrl-label" aria-hidden="true" data-i18n="label.speed">Velocità</span>
+      </div>
+
     </div>
+
+    <!-- Cosa sta succedendo mentre l'audio si prepara (R6) -->
+    <p class="player-status" id="player-status" aria-live="polite"></p>
 
     <!-- Keyboard hint -->
     <p class="keyboard-hint" data-i18n-aria-label="kbd.aria">

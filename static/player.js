@@ -43,7 +43,8 @@ class TtsPlayer {
       progressFill:    document.getElementById('progress-fill'),
       progressCounter: document.getElementById('progress-counter'),
       btnPlay:         document.getElementById('btn-play'),
-      btnStop:         document.getElementById('btn-stop'),
+      speedSelect:     document.getElementById('speed-select'),
+      playerStatus:    document.getElementById('player-status'),
       btnPrev:         document.getElementById('btn-prev'),
       btnNext:         document.getElementById('btn-next'),
       btnStart:        document.getElementById('btn-start'),
@@ -164,7 +165,7 @@ class TtsPlayer {
       }
     });
 
-    this._dom.btnStop.addEventListener('click',   () => this.stop());
+    this._dom.speedSelect.addEventListener('change', () => this._applySpeed());
     this._dom.btnPrev.addEventListener('click',   () => this.prev());
     this._dom.btnNext.addEventListener('click',   () => this.next());
     this._dom.btnStart.addEventListener('click',  () => this.goTo(0));
@@ -338,15 +339,6 @@ class TtsPlayer {
     this._audio.pause();
   }
 
-  /** Stop: ferma e torna al paragrafo 0 */
-  stop() {
-    this._audio.pause();
-    this._audio.src = '';
-    this.currentIdx = 0;
-    this._setState('idle');
-    this.updateUI();
-  }
-
   /** Paragrafo successivo */
   async next() {
     if (!this.totalCount) return;
@@ -493,6 +485,7 @@ class TtsPlayer {
       }
 
       this._audio.src = audioSrc;
+      this._applySpeed();
       await this._audio.play();
 
       this._setPlayIconLoading(false);
@@ -561,14 +554,21 @@ class TtsPlayer {
     /* Abilita/disabilita bottone stop e play in base allo stato */
     const hasFile = this.totalCount > 0;
     this._dom.btnPlay.disabled   = !hasFile || state === 'loading';
-    this._dom.btnStop.disabled   = !hasFile || (state === 'idle');
     this._dom.btnRepeat.disabled = !hasFile;
+    this._dom.playerStatus.textContent =
+      hasFile && state === 'loading' ? t('status.preparing') : '';
+  }
+
+  /** Velocità di riproduzione (R3): vale anche per gli audio caricati dopo */
+  _applySpeed() {
+    const rate = Number(this._dom.speedSelect.value) || 1;
+    this._audio.defaultPlaybackRate = rate;
+    this._audio.playbackRate = rate;
   }
 
   _setControlsEnabled(enabled) {
     [
       this._dom.btnPlay,
-      this._dom.btnStop,
       this._dom.btnPrev,
       this._dom.btnNext,
       this._dom.btnStart,

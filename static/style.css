@@ -633,23 +633,31 @@ body {
 
 .progress-bar-wrapper {
   flex: 1;
-  height: 4px;
+  height: 10px;
   background-color: var(--progress-bg);
-  border-radius: 2px;
+  border-radius: 5px;
   cursor: pointer;
   position: relative;
   overflow: visible;
   transition: height var(--duration) var(--ease-out);
 }
 
-.progress-bar-wrapper:hover {
-  height: 6px;
+/* Area cliccabile più alta della barra, comoda anche col dito (R7) */
+.progress-bar-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -12px 0;
+}
+
+.progress-bar-wrapper:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .progress-bar-fill {
   height: 100%;
   background-color: var(--progress-fg);
-  border-radius: 2px;
+  border-radius: 5px;
   width: 0%;
   transition: width 0.3s var(--ease-out);
   box-shadow: 0 0 12px var(--accent-glow),
@@ -789,6 +797,31 @@ body {
   white-space: nowrap;
 }
 
+.speed-select {
+  height: 48px;
+  padding: 0 8px;
+  background-color: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.speed-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.player-status {
+  min-height: 1.2em;
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* Keyboard hint */
 .keyboard-hint {
   text-align: center;
@@ -874,6 +907,10 @@ body {
   .player-btn--play {
     width: 56px;
     height: 56px;
+  }
+
+  .speed-select {
+    height: 44px;
   }
 
   .ctrl {

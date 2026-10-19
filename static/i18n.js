@@ -52,8 +52,8 @@ const I18N_TRANSLATIONS = {
     /* Progress */
     'progress.aria':            'Avanzamento lettura',
     'progress.sliderTitle':     'Clicca per saltare a un punto del testo',
-    'progress.counter':         'Paragrafo {current} / {total}',
-    'progress.counterEmpty':    'Paragrafo \u2014 / \u2014',
+    'progress.counter':         'Paragrafo {current} di {total}',
+    'progress.counterEmpty':    'Paragrafo \u2014 di \u2014',
     'progress.valueText':       'Paragrafo {current} di {total}',
 
     /* Player controls */
@@ -66,8 +66,6 @@ const I18N_TRANSLATIONS = {
     'player.pauseAria':         'Pausa',
     'player.playTitle':         'Ascolta / Pausa (Spazio)',
     'player.loadingAria':       'Caricamento audio...',
-    'player.stopAria':          'Stop',
-    'player.stopTitle':         'Stop e torna al primo paragrafo',
     'player.nextAria':          'Paragrafo successivo',
     'player.nextTitle':         'Paragrafo successivo (freccia destra)',
     'player.repeatAria':        'Riascolta il paragrafo',
@@ -78,9 +76,11 @@ const I18N_TRANSLATIONS = {
     'label.prev':               'Indietro',
     'label.listen':             'Ascolta',
     'label.pause':              'Pausa',
-    'label.stop':               'Stop',
     'label.next':               'Avanti',
     'label.repeat':             'Riascolta',
+    'label.speed':              'Velocità',
+    'player.speedAria':         'Velocità di lettura',
+    'status.preparing':         'Preparo l\'audio... la prima volta può richiedere qualche secondo.',
 
     /* Keyboard hints */
     'kbd.space':                'Spazio',
@@ -146,8 +146,8 @@ const I18N_TRANSLATIONS = {
     /* Progress */
     'progress.aria':            'Reading progress',
     'progress.sliderTitle':     'Click to jump to a point in the text',
-    'progress.counter':         'Paragraph {current} / {total}',
-    'progress.counterEmpty':    'Paragraph \u2014 / \u2014',
+    'progress.counter':         'Paragraph {current} of {total}',
+    'progress.counterEmpty':    'Paragraph \u2014 of \u2014',
     'progress.valueText':       'Paragraph {current} of {total}',
 
     /* Player controls */
@@ -160,8 +160,6 @@ const I18N_TRANSLATIONS = {
     'player.pauseAria':         'Pause',
     'player.playTitle':         'Listen / Pause (Space)',
     'player.loadingAria':       'Loading audio...',
-    'player.stopAria':          'Stop',
-    'player.stopTitle':         'Stop and go to first paragraph',
     'player.nextAria':          'Next paragraph',
     'player.nextTitle':         'Next paragraph (right arrow)',
     'player.repeatAria':        'Replay paragraph',
@@ -172,9 +170,11 @@ const I18N_TRANSLATIONS = {
     'label.prev':               'Back',
     'label.listen':             'Listen',
     'label.pause':              'Pause',
-    'label.stop':               'Stop',
     'label.next':               'Next',
     'label.repeat':             'Replay',
+    'label.speed':              'Speed',
+    'player.speedAria':         'Reading speed',
+    'status.preparing':         'Preparing the audio... the first time it can take a few seconds.',
 
     /* Keyboard hints */
     'kbd.space':                'Space',
