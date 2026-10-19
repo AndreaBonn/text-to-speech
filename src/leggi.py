@@ -318,7 +318,10 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par) -
             if riproduce:
                 await _riproduci_async(mp3_bytes)
 
-    except KeyboardInterrupt:  # pragma: no cover — requires real SIGINT
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        # Since Python 3.11 asyncio.run turns Ctrl+C into a cancellation of this
+        # task, not a KeyboardInterrupt here. Returning normally (instead of
+        # re-raising) lets the paragraphs already synthesized be saved below.
         print()
         info("Lettura interrotta.")
 

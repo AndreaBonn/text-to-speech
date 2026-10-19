@@ -9,9 +9,13 @@ calcola_path_output, leggi_con_piper, leggi_con_edge, main.
 
 import asyncio
 import io
+import os
 import shutil
+import signal
 import subprocess
+import sys
 import tempfile
+import threading
 import wave
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -2264,3 +2268,66 @@ class TestLoopEdgeErroreSintesi:
 
         assert completato is False
         assert "paragrafo 1/1: TimeoutError" in capsys.readouterr().out
+
+
+_SCRIPT_CTRL_C = """
+import asyncio, sys
+from pathlib import Path
+from unittest.mock import patch
+
+from src import leggi
+
+
+async def sintesi(voice_id, testo):
+    if testo == "Gamma":
+        print("ATTESA-GAMMA", flush=True)
+        await asyncio.sleep(30)
+    return b"MP3:" + testo.encode()
+
+
+salva = Path(sys.argv[1])
+with (
+    patch.object(leggi, "sintetizza_edge", sintesi),
+    patch.object(leggi, "_ha_player", return_value=False),
+    patch.dict("sys.modules", {"edge_tts": object()}),
+):
+    leggi.leggi_con_edge("Alfa\\n\\nBeta\\n\\nGamma", "giuseppe", salva_path=salva)
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT reale solo su POSIX")
+class TestCtrlCRealeLetturaEdge:
+    """Ctrl+C vero (SIGINT) mentre Edge sintetizza: si salva ciò che è già pronto."""
+
+    def test_sigint_unisce_i_paragrafi_gia_sintetizzati(self, tmp_path):
+        script = tmp_path / "lettura.py"
+        script.write_text(_SCRIPT_CTRL_C)
+        salva = tmp_path / "full" / "libro.mp3"
+        radice = Path(__file__).resolve().parent.parent
+
+        proc = subprocess.Popen(
+            [sys.executable, str(script), str(salva)],
+            cwd=radice,
+            env={**os.environ, "PYTHONPATH": str(radice)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        # Watchdog: reading stdout line by line has no timeout of its own.
+        sentinella = threading.Timer(15, proc.kill)
+        sentinella.start()
+        try:
+            for riga in proc.stdout:
+                if "ATTESA-GAMMA" in riga:
+                    break
+            proc.send_signal(signal.SIGINT)
+            stdout, stderr = proc.communicate(timeout=10)
+        finally:
+            sentinella.cancel()
+            proc.kill()
+            proc.wait()
+
+        assert "Lettura interrotta" in stdout
+        assert "Traceback" not in stderr
+        assert proc.returncode == 0
+        assert salva.read_bytes() == b"MP3:AlfaMP3:Beta"
