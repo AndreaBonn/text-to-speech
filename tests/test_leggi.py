@@ -9,6 +9,8 @@ calcola_path_output, leggi_con_piper, leggi_con_edge, main.
 
 import asyncio
 import io
+import shutil
+import subprocess
 import tempfile
 import wave
 from pathlib import Path
@@ -1398,67 +1400,68 @@ class TestWavAMp3:
 
 
 class TestConcatenaMp3:
-    """Test per la concatenazione MP3 via ffmpeg."""
+    """Concatenazione MP3: i frame sono auto-sincronizzanti, i byte si uniscono in ordine."""
 
-    def test_chiama_ffmpeg_con_filtro_concat(self, tmp_path):
-        """Deve usare il filtro concat di ffmpeg."""
+    def test_scrive_i_frammenti_uniti_in_ordine(self, tmp_path):
         from src.leggi import concatena_mp3
 
-        # Arrange
         output = tmp_path / "completo.mp3"
-        frammenti = [b"\x01" * 50, b"\x02" * 50]
 
-        with patch("src.leggi.subprocess.run") as mock_run:
-            # Act
-            concatena_mp3(frammenti, output)
+        concatena_mp3([b"AAA", b"BBB", b"CCC"], output)
 
-        # Assert
-        cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "ffmpeg"
-        assert any("concat" in arg for arg in cmd)
-        assert str(output) in cmd
+        assert output.read_bytes() == b"AAABBBCCC"
 
-    def test_argv_ffmpeg_completo(self, tmp_path):
-        """argv esatto: sovrascrive (-y), concat da stdin, copia senza ricodifica."""
+    @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="richiede ffmpeg e ffprobe")
+    def test_il_risultato_e_un_mp3_lungo_quanto_i_frammenti(self, tmp_path):
         from src.leggi import concatena_mp3
 
-        # Arrange
+        def mp3_di_un_secondo(nome):
+            percorso = tmp_path / nome
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=frequency=440:duration=1",
+                    "-codec:a",
+                    "libmp3lame",
+                    str(percorso),
+                ],
+                check=True,
+            )
+            return percorso.read_bytes()
+
+        def durata(percorso):
+            uscita = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    str(percorso),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            return float(uscita)
+
         output = tmp_path / "completo.mp3"
+        frammenti = [mp3_di_un_secondo("a.mp3"), mp3_di_un_secondo("b.mp3")]
+        # LAME adds encoder padding: each "1 s" fragment lasts slightly more.
+        attesa = durata(tmp_path / "a.mp3") + durata(tmp_path / "b.mp3")
 
-        with patch("src.leggi.subprocess.run") as mock_run:
-            # Act
-            concatena_mp3([b"\x01", b"\x02"], output)
+        concatena_mp3(frammenti, output)
 
-        # Assert
-        assert mock_run.call_args[0][0] == [
-            "ffmpeg",
-            "-y",
-            "-i",
-            "concat:pipe:0",
-            "-codec:a",
-            "copy",
-            "-loglevel",
-            "error",
-            str(output),
-        ]
-
-    def test_unisce_tutti_i_frammenti_come_stdin(self, tmp_path):
-        """I byte di tutti i frammenti devono essere concatenati e passati come stdin."""
-        from src.leggi import concatena_mp3
-
-        # Arrange
-        output = tmp_path / "completo.mp3"
-        frammenti = [b"AAA", b"BBB", b"CCC"]
-
-        with patch("src.leggi.subprocess.run") as mock_run:
-            # Act
-            concatena_mp3(frammenti, output)
-
-        # Assert
-        kwargs = mock_run.call_args[1]
-        assert kwargs["input"] == b"AAABBBCCC"
-        assert kwargs["check"] is True
-        assert kwargs["timeout"] == 30
+        assert attesa > 2.0
+        assert durata(output) == pytest.approx(attesa, abs=0.05)
 
 
 # ===========================================================================

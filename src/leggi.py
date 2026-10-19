@@ -86,22 +86,13 @@ def concatena_wav(lista_wav: list[bytes], sample_rate: int) -> bytes:
 
 
 def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            "concat:pipe:0",
-            "-codec:a",
-            "copy",
-            "-loglevel",
-            "error",
-            str(output_path),
-        ],
-        input=b"".join(lista_mp3),
-        check=True,
-        timeout=30,
-    )
+    """Unisce gli MP3 in un unico file, come fa il web (tts_engine._concat_mp3_bytes).
+
+    I frame MP3 sono auto-sincronizzanti: i byte uniti in ordine sono già un
+    file valido. ffmpeg con ``concat:pipe:0`` non serve, e dalla 6.x lo rifiuta
+    ("Protocol 'pipe' not on whitelist").
+    """
+    output_path.write_bytes(b"".join(lista_mp3))
 
 
 # ─── Riproduzione audio ─────────────────────────────────────────────────────
