@@ -134,6 +134,16 @@ class TestSanitizeFilename:
         assert self._sanitize("file|cat.md") == ""
         assert self._sanitize("file$(cmd).md") == ""
 
+    def test_filename_con_parentesi_accettato(self):
+        """I nomi dei file scaricati due volte, es. 'documento (1).md', devono passare."""
+        assert self._sanitize("documento (1).md") == "documento (1).md"
+        assert self._sanitize("foto [2].pdf") == "foto [2].pdf"
+
+    def test_filename_con_apostrofo_e_virgola_accettato(self):
+        """Apostrofi (dritti e tipografici) e virgole sono comuni nei titoli italiani."""
+        assert self._sanitize("l'arte della guerra.epub") == "l'arte della guerra.epub"
+        assert self._sanitize("l\u2019isola, cap. 1.docx") == "l\u2019isola, cap. 1.docx"
+
     def test_filename_unicode_accettato(self):
         """Nomi con caratteri unicode (accenti) devono essere accettati."""
         risultato = self._sanitize("caffè.md")

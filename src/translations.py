@@ -8,6 +8,10 @@ TRANSLATIONS = {
         "error.file_too_large": "File troppo grande (max 50 MB)",
         "error.no_file": "Nessun file inviato",
         "error.unsupported_format": "Formato non supportato. Formati validi: {formats}",
+        "error.invalid_filename": (
+            "Il nome del file contiene caratteri non ammessi (come ; | $ & #): "
+            "rinominalo usando lettere, numeri e spazi, poi riprova."
+        ),
         "error.invalid_voice": "Voce '{voice}' non valida",
         "error.invalid_style": "Stile '{style}' non valido",
         "error.no_file_loaded": "Nessun file caricato",
@@ -36,6 +40,10 @@ TRANSLATIONS = {
         "error.file_too_large": "File too large (max 50 MB)",
         "error.no_file": "No file provided",
         "error.unsupported_format": "Unsupported format. Valid formats: {formats}",
+        "error.invalid_filename": (
+            "The file name contains characters that are not allowed (such as ; | $ & #): "
+            "rename it using letters, numbers and spaces, then try again."
+        ),
         "error.invalid_voice": "Voice '{voice}' is not valid",
         "error.invalid_style": "Style '{style}' is not valid",
         "error.no_file_loaded": "No file loaded",
