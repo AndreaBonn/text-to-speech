@@ -52,6 +52,11 @@ class TtsPlayer {
       styleSelect:     document.getElementById('style-select'),
       fileInput:       document.getElementById('file-input'),
       btnChoose:       document.getElementById('btn-choose'),
+      btnPasteToggle:  document.getElementById('btn-paste-toggle'),
+      btnPasteGo:      document.getElementById('btn-paste-go'),
+      btnSample:       document.getElementById('btn-sample'),
+      pastePanel:      document.getElementById('paste-panel'),
+      pasteInput:      document.getElementById('paste-input'),
       readerArea:      document.getElementById('reader-area'),
       bottomBar:       document.getElementById('bottom-bar'),
       fileName:        document.getElementById('file-name'),
@@ -125,6 +130,13 @@ class TtsPlayer {
       e.target.value = '';
     });
     this._dom.btnChoose.addEventListener('click', () => this._dom.fileInput.click());
+    this._dom.btnPasteToggle.addEventListener('click', () => this._togglePaste());
+    this._dom.btnPasteGo.addEventListener('click', () => {
+      const text = this._dom.pasteInput.value;
+      if (text.trim()) this.loadText(text);
+      else this._dom.pasteInput.focus();
+    });
+    this._dom.btnSample.addEventListener('click', () => this.loadText(t('sample.text')));
     this._bindDropZone();
 
     /* Voice select */
@@ -214,14 +226,19 @@ class TtsPlayer {
     });
     /* Clic sul riquadro vuoto: stessa azione del bottone */
     card.addEventListener('click', (e) => {
-      if (card.classList.contains('reader-card--empty') && !e.target.closest('button')) {
+      if (card.classList.contains('reader-card--empty') && !e.target.closest('button, textarea')) {
         this._dom.fileInput.click();
       }
     });
   }
 
+  _togglePaste() {
+    const open = this._dom.pastePanel.classList.toggle('hidden') === false;
+    this._dom.btnPasteToggle.setAttribute('aria-expanded', String(open));
+    if (open) this._dom.pasteInput.focus();
+  }
+
   _loadPickedFile(file) {
-    this._dom.fileName.textContent = file.name;
     const fd = new FormData();
     fd.append('file', file);
     this.loadFile(fd);
@@ -233,15 +250,31 @@ class TtsPlayer {
 
   /** Carica un file .md via FormData POST /api/load */
   async loadFile(formData) {
+    await this._loadDocument('/api/load', { method: 'POST', body: formData });
+  }
+
+  /** Carica un testo incollato o di esempio (A3, A4) */
+  async loadText(text) {
+    await this._loadDocument('/api/load-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async _loadDocument(path, init) {
     this._setState('loading');
     this._setPlayIconLoading(true);
 
     try {
-      const lang = i18nGetLang();
-      const res  = await fetch(`/api/load?lang=${lang}`, { method: 'POST', body: formData });
+      const res  = await fetch(`${path}?lang=${i18nGetLang()}`, init);
       if (!res.ok) throw await this._apiError(res);
       const data = await res.json();
 
+      /* Il documento precedente non deve continuare a suonare */
+      this._audio.pause();
+      this._audio.removeAttribute('src');
+      this._dom.fileName.textContent = data.filename;
       this.paragraphs   = data.paragraphs;
       this.totalCount   = data.total;
       this.filename     = data.filename;

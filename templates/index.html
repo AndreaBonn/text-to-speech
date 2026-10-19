@@ -143,6 +143,17 @@
           <li><span class="steps__n" aria-hidden="true">2</span><span data-i18n="steps.voice">Scegli la voce</span></li>
           <li><span class="steps__n" aria-hidden="true">3</span><span data-i18n="steps.listen">Premi Ascolta</span></li>
         </ol>
+        <div class="empty-alts">
+          <button type="button" class="btn-link" id="btn-paste-toggle"
+                  aria-expanded="false" aria-controls="paste-panel" data-i18n="empty.paste">oppure incolla un testo</button>
+          <button type="button" class="btn-link" id="btn-sample" data-i18n="empty.sample">prova con un testo di esempio</button>
+        </div>
+        <div class="paste-panel hidden" id="paste-panel">
+          <label for="paste-input" class="sr-only" data-i18n="paste.label">Testo da ascoltare</label>
+          <textarea id="paste-input" class="paste-input" rows="5"
+                    data-i18n-placeholder="paste.placeholder"></textarea>
+          <button type="button" class="btn-primary" id="btn-paste-go" data-i18n="paste.go">Ascolta questo testo</button>
+        </div>
       </div>
 
       <!-- Paragrafo attivo (nascosto inizialmente) -->

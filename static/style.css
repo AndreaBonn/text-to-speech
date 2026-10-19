@@ -447,6 +447,67 @@ body {
   color: var(--text-muted);
 }
 
+.empty-alts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  min-height: 44px;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.btn-link:hover {
+  color: var(--accent-hover);
+}
+
+.btn-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.paste-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.paste-panel.hidden {
+  display: none;
+}
+
+.paste-input {
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  background-color: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+}
+
+.paste-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .steps__n {
   display: inline-grid;
   place-items: center;
