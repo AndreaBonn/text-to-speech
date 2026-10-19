@@ -3,6 +3,8 @@ tests/conftest.py
 Fixture condivise per la test suite.
 """
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -37,6 +39,64 @@ def engine():
     from src.tts_engine import TTSEngine
 
     return TTSEngine()
+
+
+@pytest.fixture(scope="session")
+def sine_mp3():
+    """Factory: MP3 mono 24 kHz 48 kbit/s come quelli di Edge TTS, generato da ffmpeg."""
+
+    def _make(durata_s: float, freq: int = 440) -> bytes:
+        return subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency={freq}:duration={durata_s}",
+                "-ar",
+                "24000",
+                "-ac",
+                "1",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "48k",
+                "-f",
+                "mp3",
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=True,
+        ).stdout
+
+    return _make
+
+
+@pytest.fixture()
+def ffprobe_mp3(tmp_path):
+    """Factory: capitoli e durata di un MP3 (bytes o path) come li vede ffprobe."""
+
+    def _probe(mp3: bytes | Path) -> dict:
+        path = mp3 if isinstance(mp3, Path) else tmp_path / "probe.mp3"
+        if not isinstance(mp3, Path):
+            path.write_bytes(mp3)
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_chapters", "-show_format", "-of", "json", str(path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        info = json.loads(out)
+        return {
+            "titoli": [c["tags"]["title"] for c in info["chapters"]],
+            "inizi": [float(c["start_time"]) for c in info["chapters"]],
+            "fine": float(info["chapters"][-1]["end_time"]) if info["chapters"] else None,
+            "durata": float(info["format"]["duration"]),
+        }
+
+    return _probe
 
 
 def pytest_collection_modifyitems(items):

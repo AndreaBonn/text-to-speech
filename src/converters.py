@@ -105,7 +105,11 @@ def _converti_markdown(percorso: Path) -> str:
                 return result.stdout
             log.warning("pandoc ha restituito un errore, uso il fallback regex.")
 
-    testo = _leggi_testo(percorso)
+    return _pulisci_markdown(_leggi_testo(percorso))
+
+
+def _pulisci_markdown(testo: str) -> str:
+    """Fallback regex: rimuove la sintassi Markdown più comune."""
     testo = re.sub(r"#{1,6}\s*", "", testo)
     testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
     testo = re.sub(r"\*(.+?)\*", r"\1", testo)

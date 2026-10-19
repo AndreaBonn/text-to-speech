@@ -5,12 +5,14 @@ Test per il modulo converters.py: dispatcher e convertitori di formato.
 Ogni convertitore è testato con file reali creati in tmp_path.
 """
 
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.converters import SUPPORTED_EXTENSIONS, file_a_testo
+from src.titles import estrai_titoli
 
 # ===========================================================================
 # Test — Dispatcher file_a_testo
@@ -726,3 +728,144 @@ class TestCodificaFileDiTesto:
 
         with pytest.raises(UnicodeDecodeError):
             file_a_testo(txt)
+
+
+# ===========================================================================
+# Test — estrai_titoli
+# ===========================================================================
+
+MARKDOWN_TRE_TITOLI = (
+    "# Primo **titolo**\n\nTesto uno.\n\n## Secondo\n\nTesto due.\n\n# Terzo\n\nTesto tre.\n"
+)
+
+
+def _capitoli(percorso: Path) -> list[tuple[int, str]]:
+    """Titoli agganciati ai paragrafi che il motore leggerebbe davvero."""
+    from src.chapters import trova_capitoli
+
+    paragrafi = [p.strip() for p in file_a_testo(percorso).split("\n\n") if p.strip()]
+    return trova_capitoli(paragrafi, estrai_titoli(percorso))
+
+
+class TestEstraiTitoli:
+    """I titoli devono agganciarsi ai paragrafi prodotti da file_a_testo."""
+
+    def test_markdown_fallback_regex(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text(MARKDOWN_TRE_TITOLI)
+
+        with patch("src.converters.shutil.which", return_value=None):
+            titoli = [t.testo for t in estrai_titoli(md)]
+            capitoli = _capitoli(md)
+
+        assert titoli == ["Primo titolo", "Secondo", "Terzo"]
+        assert capitoli == [(0, "Primo titolo"), (2, "Secondo"), (4, "Terzo")]
+
+    def test_markdown_fallback_ignora_cancelletto_nei_blocchi_di_codice(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("# Vero\n\n```\n# commento\n```\n\nTesto.\n")
+
+        with patch("src.converters.shutil.which", return_value=None):
+            titoli = [t.testo for t in estrai_titoli(md)]
+
+        assert titoli == ["Vero"]
+
+    @pytest.mark.skipif(not shutil.which("pandoc"), reason="pandoc non installato")
+    def test_markdown_con_pandoc(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text(MARKDOWN_TRE_TITOLI + "\nQuarto *corsivo*\n======\n\nTesto quattro.\n")
+
+        capitoli = _capitoli(md)
+
+        assert capitoli == [
+            (0, "Primo titolo"),
+            (2, "Secondo"),
+            (4, "Terzo"),
+            (6, "Quarto corsivo"),
+        ]
+
+    def test_markdown_pandoc_in_errore_usa_il_fallback(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_text("# Titolo\n\nTesto.")
+
+        with (
+            patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+            patch("src.converters.subprocess.run", return_value=MagicMock(returncode=1)),
+        ):
+            titoli = [t.testo for t in estrai_titoli(md)]
+
+        assert titoli == ["Titolo"]
+
+    def test_docx_stili_heading(self, tmp_path):
+        from docx import Document
+
+        docx_path = tmp_path / "doc.docx"
+        doc = Document()
+        doc.add_heading("Capitolo uno", level=1)
+        doc.add_paragraph("Testo uno.")
+        doc.add_heading("Sezione", level=2)
+        doc.add_paragraph("Testo due.")
+        doc.save(str(docx_path))
+
+        assert _capitoli(docx_path) == [(0, "Capitolo uno"), (2, "Sezione")]
+
+    def test_html_titolo_con_markup_interno(self, tmp_path):
+        html = tmp_path / "pagina.html"
+        html.write_text(
+            "<html><body><nav><h2>Menu</h2></nav><main>"
+            "<h1>Ciao <em>mondo</em></h1><p>Testo uno.</p>"
+            "<h2>Seconda parte</h2><p>Testo due.</p>"
+            "</main></body></html>"
+        )
+
+        assert [t.testo for t in estrai_titoli(html)] == ["Ciao mondo", "Seconda parte"]
+        assert _capitoli(html) == [(0, "Ciao mondo"), (3, "Seconda parte")]
+
+    def test_epub_titoli_dei_capitoli(self, tmp_path):
+        from ebooklib import epub
+
+        book = epub.EpubBook()
+        book.set_identifier("id-titoli")
+        book.set_title("Libro")
+        book.set_language("it")
+        capitoli = []
+        for i, nome in enumerate(["Inizio", "Fine"]):
+            ch = epub.EpubHtml(title=nome, file_name=f"c{i}.xhtml", lang="it")
+            ch.content = f"<html><body><h1>{nome}</h1><p>Testo {i}.</p></body></html>".encode()
+            book.add_item(ch)
+            capitoli.append(ch)
+        book.toc = capitoli
+        book.spine = ["nav", *capitoli]
+        book.add_item(epub.EpubNcx())
+        book.add_item(epub.EpubNav())
+        epub_path = tmp_path / "libro.epub"
+        epub.write_epub(str(epub_path), book)
+
+        trovati = _capitoli(epub_path)
+
+        assert [titolo for _, titolo in trovati] == ["Inizio", "Fine"]
+        assert trovati[0][0] < trovati[1][0]
+
+    def test_txt_nessun_titolo(self, tmp_path):
+        txt = tmp_path / "note.txt"
+        txt.write_text("# Sembra un titolo\n\nTesto.")
+
+        assert estrai_titoli(txt) == []
+
+    def test_pdf_nessun_titolo(self, tmp_path):
+        import pymupdf
+
+        pdf_path = tmp_path / "doc.pdf"
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "Testo del PDF.")
+        doc.save(str(pdf_path))
+        doc.close()
+
+        assert estrai_titoli(pdf_path) == []
+
+    def test_file_illeggibile_nessun_titolo(self, tmp_path):
+        """I titoli sono opzionali: un estrattore che fallisce non blocca il caricamento."""
+        rotto = tmp_path / "rotto.docx"
+        rotto.write_bytes(b"non uno zip")
+
+        assert estrai_titoli(rotto) == []
