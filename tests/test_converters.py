@@ -6,7 +6,7 @@ Ogni convertitore è testato con file reali creati in tmp_path.
 """
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -144,6 +144,88 @@ class TestConvertiMarkdown:
         assert "Titolo" in risultato
         assert "Contenuto del documento." in risultato
 
+    def test_pandoc_disponibile_argv_completo_e_stdout_restituito(self, tmp_path):
+        """Con pandoc nel PATH: argv esatto e restituito lo stdout di pandoc."""
+        # Arrange
+        md = tmp_path / "doc.md"
+        md.write_text("# Titolo\n\nTesto.")
+        completato = MagicMock(returncode=0, stdout="OUTPUT-DI-PANDOC\n")
+
+        # Act
+        with (
+            patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+            patch("src.converters.subprocess.run", return_value=completato) as run,
+        ):
+            risultato = file_a_testo(md)
+
+        # Assert
+        assert run.call_count == 1
+        assert run.call_args.args[0] == [
+            "pandoc",
+            str(md),
+            "-t",
+            "plain",
+            "--wrap=none",
+        ]
+        assert risultato == "OUTPUT-DI-PANDOC\n"
+
+    def test_pandoc_errore_usa_fallback_regex(self, tmp_path):
+        """Se pandoc esce con errore si usa il fallback regex sul file."""
+        # Arrange
+        md = tmp_path / "doc.md"
+        md.write_text("# Titolo\n\nTesto.")
+        fallito = MagicMock(returncode=1, stdout="STDOUT-DA-IGNORARE")
+
+        # Act
+        with (
+            patch("src.converters.shutil.which", return_value="/usr/bin/pandoc"),
+            patch("src.converters.subprocess.run", return_value=fallito),
+        ):
+            risultato = file_a_testo(md)
+
+        # Assert
+        assert risultato == "Titolo\n\nTesto."
+
+    def test_fallback_rimuove_titolo_di_livello_6(self, tmp_path):
+        """Anche i titoli fino a livello 6 (######) perdono il marcatore."""
+        # Arrange
+        md = tmp_path / "h6.md"
+        md.write_text("###### H6 titolo\n\nCorpo.")
+
+        # Act
+        with patch("src.converters.shutil.which", return_value=None):
+            risultato = file_a_testo(md)
+
+        # Assert
+        assert risultato == "H6 titolo\n\nCorpo."
+
+    def test_fallback_rimuove_separatore_underscore(self, tmp_path):
+        """Il separatore '___' è rimosso, il testo attorno resta."""
+        # Arrange
+        md = tmp_path / "sep.md"
+        md.write_text("Prima.\n\n___\n\nDopo.")
+
+        # Act
+        with patch("src.converters.shutil.which", return_value=None):
+            risultato = file_a_testo(md)
+
+        # Assert
+        assert "_" not in risultato
+        assert risultato == "Prima.\n\nDopo."
+
+    def test_fallback_comprime_righe_vuote_multiple(self, tmp_path):
+        """Tre o più righe vuote consecutive diventano un solo separatore."""
+        # Arrange
+        md = tmp_path / "vuote.md"
+        md.write_text("Primo.\n\n\n\n\nSecondo.")
+
+        # Act
+        with patch("src.converters.shutil.which", return_value=None):
+            risultato = file_a_testo(md)
+
+        # Assert
+        assert risultato == "Primo.\n\nSecondo."
+
 
 # ===========================================================================
 # Test — Convertitore .docx
@@ -186,10 +268,9 @@ class TestConvertiDocx:
 
         # Act
         risultato = file_a_testo(docx_path)
-        paragrafi = [p for p in risultato.split("\n\n") if p.strip()]
 
         # Assert
-        assert len(paragrafi) == 2
+        assert risultato == "Testo valido.\n\nAltro testo."
 
     def test_docx_vuoto(self, tmp_path):
         """Un DOCX senza contenuto deve restituire stringa vuota."""
@@ -271,7 +352,7 @@ class TestConvertiHtml:
         assert "Copyright" not in risultato
 
     def test_preferisce_main_content(self, tmp_path):
-        """Se presente, deve estrarre da <main> o <article>."""
+        """Se presente, deve estrarre da <main>, escludendo il resto del body."""
         # Arrange
         html = tmp_path / "article.html"
         html.write_text("""<html><body>
@@ -284,6 +365,45 @@ class TestConvertiHtml:
 
         # Assert
         assert "Articolo importante." in risultato
+        assert "Menu laterale" not in risultato
+        assert risultato == "Articolo importante."
+
+    def test_preferisce_article_se_manca_main(self, tmp_path):
+        """Senza <main>, il contenuto è quello di <article>, non del resto."""
+        # Arrange
+        html = tmp_path / "solo_article.html"
+        html.write_text("""<html><body>
+<div>Testo fuori dall'articolo.</div>
+<article><p>Corpo dell'articolo.</p></article>
+</body></html>""")
+
+        # Act
+        risultato = file_a_testo(html)
+
+        # Assert
+        assert risultato == "Corpo dell'articolo."
+
+    def test_senza_main_rimuove_nav_header_footer_aside(self, tmp_path):
+        """Senza <main> né <article> i blocchi di contorno non finiscono nel testo."""
+        # Arrange
+        html = tmp_path / "senza_main.html"
+        html.write_text("""<html><body>
+<nav><a href="/">Voce di navigazione</a></nav>
+<header><h1>Intestazione sito</h1></header>
+<aside>Box laterale pubblicitario</aside>
+<p>Contenuto centrale.</p>
+<footer><p>Piè di pagina legale</p></footer>
+</body></html>""")
+
+        # Act
+        risultato = file_a_testo(html)
+
+        # Assert
+        assert risultato == "Contenuto centrale."
+        assert "navigazione" not in risultato
+        assert "Intestazione" not in risultato
+        assert "laterale" not in risultato
+        assert "legale" not in risultato
 
     def test_html_estensione_htm(self, tmp_path):
         """Anche .htm deve funzionare come .html."""
@@ -368,6 +488,43 @@ class TestConvertiPdf:
         # Il numero "1" isolato deve essere rimosso
         lines = [line.strip() for line in risultato.split("\n") if line.strip()]
         assert "1" not in lines
+
+    def test_pdf_pagina_vuota_in_mezzo_ignorata(self, tmp_path):
+        """Una pagina senza testo non lascia buchi: le altre restano separate da riga vuota."""
+        import pymupdf
+
+        # Arrange
+        pdf_path = tmp_path / "buco.pdf"
+        doc = pymupdf.open()
+        doc.new_page().insert_text((72, 72), "Pagina uno.")
+        doc.new_page()  # vuota
+        doc.new_page().insert_text((72, 72), "Pagina tre.")
+        doc.save(str(pdf_path))
+        doc.close()
+
+        # Act
+        risultato = file_a_testo(pdf_path)
+
+        # Assert
+        assert risultato == "Pagina uno.\n\nPagina tre."
+
+    def test_pdf_solo_pagine_vuote_restituisce_stringa_vuota(self, tmp_path):
+        """Un PDF di sole pagine bianche non produce testo."""
+        import pymupdf
+
+        # Arrange
+        pdf_path = tmp_path / "bianco.pdf"
+        doc = pymupdf.open()
+        doc.new_page()
+        doc.new_page()
+        doc.save(str(pdf_path))
+        doc.close()
+
+        # Act
+        risultato = file_a_testo(pdf_path)
+
+        # Assert
+        assert risultato == ""
 
 
 # ===========================================================================
@@ -462,3 +619,42 @@ class TestConvertiEpub:
         # Assert
         assert "alert" not in risultato
         assert "Testo sicuro." in risultato
+
+    def test_epub_capitoli_separati_da_riga_vuota(self, tmp_path):
+        """Due capitoli sono uniti con una riga vuota (un paragrafo ciascuno)."""
+        # Arrange
+        epub_path = self._make_epub(tmp_path, ["Capitolo A testo.", "Capitolo B testo."])
+
+        # Act
+        risultato = file_a_testo(epub_path)
+
+        # Assert
+        assert risultato == "Capitolo A testo.\n\nCapitolo B testo."
+
+    def test_epub_rimuove_nav_nel_capitolo(self, tmp_path):
+        """Un <nav> dentro un capitolo (es. indice) non finisce nel testo."""
+        from ebooklib import epub
+
+        # Arrange
+        book = epub.EpubBook()
+        book.set_identifier("test-nav")
+        book.set_title("Nav Test")
+        book.set_language("it")
+        ch = epub.EpubHtml(title="Cap", file_name="ch.xhtml", lang="it")
+        ch.content = b"""<html><body>
+<nav><ol><li>Indice interno</li></ol></nav>
+<p>Testo del capitolo.</p>
+</body></html>"""
+        book.add_item(ch)
+        book.spine = ["nav", ch]
+        book.add_item(epub.EpubNcx())
+        book.add_item(epub.EpubNav())
+        epub_path = tmp_path / "nav.epub"
+        epub.write_epub(str(epub_path), book)
+
+        # Act
+        risultato = file_a_testo(epub_path)
+
+        # Assert
+        assert risultato == "Testo del capitolo."
+        assert "Indice interno" not in risultato

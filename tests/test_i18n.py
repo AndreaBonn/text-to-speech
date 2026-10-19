@@ -6,6 +6,7 @@ Copre: translations.py (get_lang, tr, get_styles_meta)
        e gli endpoint API con parametro ?lang=.
 """
 
+import string
 from unittest.mock import MagicMock
 
 from src.translations import (
@@ -108,6 +109,28 @@ class TestGetLang:
         # Assert
         assert lang == "en"
 
+    def test_accept_language_regione_da_sola_riconosce_en(self):
+        """Accept-Language: en-US (solo codice regionale) deve restituire 'en'."""
+        # Arrange
+        req = self._make_request(accept_language="en-US")
+
+        # Act
+        lang = get_lang(req)
+
+        # Assert
+        assert lang == "en"
+
+    def test_accept_language_salta_lingue_non_supportate(self):
+        """Accept-Language: fr,en;q=0.8 deve scegliere la prima supportata ('en')."""
+        # Arrange
+        req = self._make_request(accept_language="fr,en;q=0.8")
+
+        # Act
+        lang = get_lang(req)
+
+        # Assert
+        assert lang == "en"
+
     def test_accept_language_header_fallback(self):
         """Accept-Language: fr-FR (non supportata) deve cadere sul default."""
         # Arrange
@@ -179,7 +202,7 @@ class TestTr:
         msg = tr("fr", "error.no_file")
 
         # Assert
-        assert msg == tr(DEFAULT_LANG, "error.no_file")
+        assert msg == "Nessun file inviato"
 
     def test_chiave_inesistente(self):
         """tr() con chiave inesistente deve restituire la chiave stessa."""
@@ -188,6 +211,18 @@ class TestTr:
 
         # Assert
         assert msg == "error.chiave_fantasma"
+
+    def test_chiave_mancante_in_lingua_ripiega_sul_default(self, monkeypatch):
+        """Chiave assente in 'en' ma presente in 'it': testo italiano, non la chiave."""
+        # Arrange
+        en_senza_chiave = {k: v for k, v in TRANSLATIONS["en"].items() if k != "error.no_file"}
+        monkeypatch.setitem(TRANSLATIONS, "en", en_senza_chiave)
+
+        # Act
+        msg = tr("en", "error.no_file")
+
+        # Assert
+        assert msg == "Nessun file inviato"
 
     def test_tutte_le_chiavi_esistono_in_entrambe_le_lingue(self):
         """Ogni chiave in 'it' deve esistere anche in 'en' e viceversa."""
@@ -200,6 +235,21 @@ class TestTr:
             f"Chiavi mancanti — solo in IT: {chiavi_it - chiavi_en}, "
             f"solo in EN: {chiavi_en - chiavi_it}"
         )
+
+    def test_placeholder_uguali_per_chiave_in_it_e_en(self):
+        """Ogni chiave espone gli stessi placeholder ({voice}, {formats}...) in IT e EN."""
+
+        def campi(testo):
+            return {nome for _, nome, _, _ in string.Formatter().parse(testo) if nome}
+
+        # Arrange
+        chiavi = [k for k in TRANSLATIONS["it"] if k != "styles"]
+
+        # Assert
+        for chiave in chiavi:
+            assert campi(TRANSLATIONS["it"][chiave]) == campi(TRANSLATIONS["en"][chiave]), chiave
+        assert campi(TRANSLATIONS["it"]["error.invalid_voice"]) == {"voice"}
+        assert campi(TRANSLATIONS["en"]["error.unsupported_format"]) == {"formats"}
 
 
 # ===========================================================================
@@ -236,6 +286,30 @@ class TestGetStylesMeta:
             assert "label" in s
             assert "description" in s
 
+    def test_stili_label_e_description_letterali_it_e_en(self):
+        """Label e description di uno stile coincidono con la specifica di prodotto."""
+        # Act
+        it = {s["id"]: s for s in get_styles_meta("it")}
+        en = {s["id"]: s for s in get_styles_meta("en")}
+
+        # Assert
+        assert it["lento"] == {
+            "id": "lento",
+            "label": "Lento",
+            "description": "Ritmo molto lento, per studio o comprensione",
+        }
+        assert en["lento"] == {
+            "id": "lento",
+            "label": "Slow",
+            "description": "Very slow pace, for study or comprehension",
+        }
+        assert it["notiziario"]["description"] == (
+            "Ritmo sostenuto e tono energico, come uno speaker"
+        )
+        assert en["notiziario"]["description"] == (
+            "Fast pace and energetic tone, like a news anchor"
+        )
+
     def test_stili_it_diversi_da_en(self):
         """Le label IT e EN devono essere diverse (tradotte)."""
         # Act
@@ -253,16 +327,19 @@ class TestGetStylesMeta:
         ids_en = {s["id"] for s in get_styles_meta("en")}
 
         # Assert
-        assert ids_it == ids_en
+        attesi = {"neutro", "notiziario", "audiolibro", "lento"}
+        assert ids_it == attesi
+        assert ids_en == attesi
 
     def test_stili_lingua_non_supportata_usa_default(self):
         """get_styles_meta con lingua non supportata deve usare il default."""
         # Act
         stili_fr = get_styles_meta("fr")
-        stili_default = get_styles_meta(DEFAULT_LANG)
 
         # Assert
-        assert stili_fr == stili_default
+        neutro = next(s for s in stili_fr if s["id"] == "neutro")
+        assert neutro["label"] == "Neutro"
+        assert neutro["description"] == "Lettura standard, bilanciata"
 
 
 # ===========================================================================
