@@ -34,7 +34,10 @@ class TtsPlayer {
     /* Cache DOM */
     this._dom = {
       emptyState:      document.getElementById('empty-state'),
-      paragraphText:   document.getElementById('paragraph-text'),
+      readerText:      document.getElementById('reader-text'),
+      docHead:         document.getElementById('doc-head'),
+      docTitle:        document.getElementById('doc-title'),
+      docMeta:         document.getElementById('doc-meta'),
       readerCard:      document.getElementById('reader-card'),
       progressBar:     document.getElementById('progress-bar'),
       progressFill:    document.getElementById('progress-fill'),
@@ -63,6 +66,7 @@ class TtsPlayer {
       btnSave:         document.getElementById('btn-save'),
     };
     this._notices = new Notices();
+    this._reader = new ReaderView(this._dom.readerText, (idx) => this._playFrom(idx));
 
     this._bindUI();
     /* Ogni richiesta audio aspetta la lista voci: senza, partirebbe con voice='' */
@@ -71,6 +75,7 @@ class TtsPlayer {
     /* Ascolta cambio lingua per ricaricare stili e aggiornare UI */
     document.addEventListener('i18n:changed', () => {
       this._voicesReady = this._loadVoices();
+      if (this._docSummary) this._showDocSummary(this._docSummary);
       this.updateUI();
     });
   }
@@ -291,7 +296,9 @@ class TtsPlayer {
 
       /* Aggiorna UI */
       this._dom.emptyState.classList.add('hidden');
-      this._dom.paragraphText.classList.remove('hidden');
+      this._dom.readerText.classList.remove('hidden');
+      this._reader.render(this.paragraphs);
+      this._showDocSummary(data);
       this._dom.readerCard.classList.remove('reader-card--empty');
       this._dom.btnSave.classList.remove('hidden');
       this._dom.bottomBar.classList.remove('bottom-bar--idle');
@@ -381,6 +388,22 @@ class TtsPlayer {
     if (wasPlaying) await this._loadAndPlay(this.currentIdx);
   }
 
+  /** Clic su un paragrafo del testo: legge da lì (R1) */
+  async _playFrom(idx) {
+    await this.goTo(idx);
+    if (this._state !== 'playing' && this._state !== 'loading') this.play();
+  }
+
+  /** Titolo, numero di paragrafi e durata stimata sopra il testo (R2) */
+  _showDocSummary(data) {
+    this._docSummary = data;
+    this._dom.docTitle.textContent = data.title || data.filename;
+    const count = data.total === 1 ? t('doc.oneParagraph') : t('doc.paragraphs', { n: data.total });
+    this._dom.docMeta.textContent =
+      t('doc.meta', { count, duration: formatDuration(data.estimated_seconds) });
+    this._dom.docHead.classList.remove('hidden');
+  }
+
   /** Prefetch blob del paragrafo N+1 in background (silenzioso) */
   async prefetchNext(currentIdx) {
     const nextIdx = currentIdx + 1;
@@ -408,17 +431,7 @@ class TtsPlayer {
   updateUI() {
     const para = this.paragraphs[this.currentIdx];
 
-    /* Testo con fade */
-    if (para) {
-      const el = this._dom.paragraphText;
-      el.classList.add('fade-out');
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          el.textContent = para.text;
-          el.classList.remove('fade-out');
-        });
-      });
-    }
+    if (para) this._reader.highlight(this.currentIdx);
 
     /* Contatore */
     if (this.totalCount) {

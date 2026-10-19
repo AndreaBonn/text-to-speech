@@ -117,6 +117,10 @@
        AREA DI LETTURA
   ============================================================ -->
   <main class="reader-area" id="reader-area" role="main">
+    <div class="doc-head hidden" id="doc-head">
+      <h1 class="doc-title" id="doc-title"></h1>
+      <p class="doc-meta" id="doc-meta"></p>
+    </div>
     <div class="reader-card reader-card--empty" id="reader-card">
       <!-- Stato iniziale vuoto: tutto il riquadro accetta un file trascinato -->
       <div id="empty-state" class="empty-state">
@@ -156,13 +160,8 @@
         </div>
       </div>
 
-      <!-- Paragrafo attivo (nascosto inizialmente) -->
-      <p
-        id="paragraph-text"
-        class="paragraph-text hidden"
-        aria-live="polite"
-        aria-atomic="true"
-      ></p>
+      <!-- Testo intero: il paragrafo in lettura è evidenziato, un clic legge da lì -->
+      <div id="reader-text" class="reader-text hidden" data-i18n-title="reader.clickHint"></div>
     </div>
   </main>
 
@@ -287,6 +286,7 @@
   ============================================================ -->
   <script src="{{ url_for('static', filename='i18n.js') }}"></script>
   <script src="{{ url_for('static', filename='notices.js') }}"></script>
+  <script src="{{ url_for('static', filename='reader-view.js') }}"></script>
   <script src="{{ url_for('static', filename='player.js') }}"></script>
 
 </body>
