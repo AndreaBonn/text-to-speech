@@ -658,3 +658,53 @@ class TestConvertiEpub:
         # Assert
         assert risultato == "Testo del capitolo."
         assert "Indice interno" not in risultato
+
+
+class TestCodificaFileDiTesto:
+    """File salvati da Blocco note o da vecchi editor: UTF-8 con BOM o Windows-1252."""
+
+    def test_txt_windows_1252_letto_con_accenti(self, tmp_path):
+        txt = tmp_path / "nota.txt"
+        txt.write_bytes("Città è bella, perché sì: l\u2019ingresso costa 5 €.".encode("cp1252"))
+
+        assert file_a_testo(txt) == "Città è bella, perché sì: l\u2019ingresso costa 5 €."
+
+    def test_txt_utf8_con_bom_senza_carattere_bom(self, tmp_path):
+        txt = tmp_path / "nota.txt"
+        txt.write_bytes("Testo con BOM.".encode("utf-8-sig"))
+
+        assert file_a_testo(txt) == "Testo con BOM."
+
+    def test_txt_utf8_resta_invariato(self, tmp_path):
+        txt = tmp_path / "nota.txt"
+        txt.write_bytes("Perché è così: “citazione” €.".encode())
+
+        assert file_a_testo(txt) == "Perché è così: “citazione” €."
+
+    def test_markdown_windows_1252_nel_fallback(self, tmp_path):
+        md = tmp_path / "doc.md"
+        md.write_bytes("# Titolo\n\nUnità di misura.".encode("cp1252"))
+
+        with patch("src.converters.shutil.which", return_value=None):
+            risultato = file_a_testo(md)
+
+        assert risultato == "Titolo\n\nUnità di misura."
+
+    def test_html_windows_1252_letto_con_accenti(self, tmp_path):
+        html = tmp_path / "pagina.html"
+        html.write_bytes("<html><body><p>Città antica.</p></body></html>".encode("cp1252"))
+
+        assert file_a_testo(html) == "Città antica."
+
+    def test_txt_windows_a_capo_crlf_divide_i_paragrafi(self, tmp_path):
+        txt = tmp_path / "nota.txt"
+        txt.write_bytes("Città.\r\n\r\nPerché.".encode("cp1252"))
+
+        assert file_a_testo(txt) == "Città.\n\nPerché."
+
+    def test_txt_utf16_non_diventa_testo_illeggibile(self, tmp_path):
+        txt = tmp_path / "nota.txt"
+        txt.write_bytes("Ciao".encode("utf-16"))
+
+        with pytest.raises(UnicodeDecodeError):
+            file_a_testo(txt)

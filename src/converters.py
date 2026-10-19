@@ -55,9 +55,30 @@ def file_a_testo(percorso: Path) -> str:
 # ─── Testo puro ──────────────────────────────────────────────────────────────
 
 
+def _leggi_testo(percorso: Path) -> str:
+    """Legge un file di testo in UTF-8 (anche con BOM) o, in alternativa, Windows-1252.
+
+    Blocco note e i vecchi editor salvano spesso in Windows-1252: senza il
+    secondo tentativo una lettera accentata rende illeggibile l'intero file.
+    I fine riga Windows (CRLF) diventano ``\n``, come con ``read_text``,
+    perché i paragrafi si dividono su ``\n\n``. Un file che non è valido in
+    nessuna delle due codifiche, o che contiene byte nulli (UTF-16, binari),
+    solleva UnicodeDecodeError.
+    """
+    dati = percorso.read_bytes()
+    nul = dati.find(b"\x00")
+    if nul != -1:
+        raise UnicodeDecodeError("utf-8", dati, nul, nul + 1, "null byte: not a text file")
+    try:
+        testo = dati.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        testo = dati.decode("cp1252")
+    return testo.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _converti_testo(percorso: Path) -> str:
     """Legge un file di testo puro. Nessuna conversione necessaria."""
-    return percorso.read_text(encoding="utf-8").strip()
+    return _leggi_testo(percorso).strip()
 
 
 # ─── Markdown ─────────────────────────────────────────────────────────────────
@@ -80,7 +101,7 @@ def _converti_markdown(percorso: Path) -> str:
             return result.stdout
         log.warning("pandoc ha restituito un errore, uso il fallback regex.")
 
-    testo = percorso.read_text(encoding="utf-8")
+    testo = _leggi_testo(percorso)
     testo = re.sub(r"#{1,6}\s*", "", testo)
     testo = re.sub(r"\*\*(.+?)\*\*", r"\1", testo)
     testo = re.sub(r"\*(.+?)\*", r"\1", testo)
@@ -142,7 +163,7 @@ def _converti_html(percorso: Path) -> str:
     """Estrae testo da una pagina HTML, rimuovendo navigazione e script."""
     from bs4 import BeautifulSoup
 
-    html = percorso.read_text(encoding="utf-8")
+    html = _leggi_testo(percorso)
     soup = BeautifulSoup(html, "lxml")
 
     for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
