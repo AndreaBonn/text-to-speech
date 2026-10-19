@@ -47,16 +47,16 @@
   --bg:           #f5efe6;
   --card:         #fbf7f1;
   --elevated:     #efe7db;
-  --accent:       #9a5524;
-  --accent-hover: #844719;
-  --accent-glow:  rgba(154, 85, 36, 0.12);
+  --accent:       #8f4c1f;
+  --accent-hover: #7a3f17;
+  --accent-glow:  rgba(143, 76, 31, 0.12);
   --text:         #2a241e;
   --text-muted:   #6d6153;
   --text-dim:     #8a7c6b;
   --border:       rgba(42, 36, 30, 0.12);
   --border-hover: rgba(42, 36, 30, 0.22);
   --progress-bg:  rgba(42, 36, 30, 0.1);
-  --progress-fg:  #9a5524;
+  --progress-fg:  #8f4c1f;
   --btn-bg:       #efe7db;
   --btn-hover:    #e7ddcf;
   --btn-active:   #e0d4c4;
@@ -409,7 +409,7 @@ body {
 .lang-btn {
   padding: 5px 10px;
   background-color: transparent;
-  color: var(--text-dim);
+  color: var(--text-muted);
   border: 1px solid var(--border);
   font-size: 0.7rem;
   font-weight: 600;
@@ -1168,7 +1168,7 @@ body {
   padding: 1px 6px;
   font-size: 0.65rem;
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 /* ============================================================
