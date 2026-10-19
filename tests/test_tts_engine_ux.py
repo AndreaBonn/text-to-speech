@@ -239,3 +239,80 @@ class TestEdgeReturnsNoAudio:
     def test_probe_reports_offline(self, engine):
         with patch.dict("sys.modules", {"edge_tts": self._edge_without_audio()}):
             assert engine.is_online_available() is False
+
+
+class TestPiperFirstLoadConcurrency:
+    """First Piper use downloads ~60 MB: the rest of the engine must keep working."""
+
+    @staticmethod
+    def _piper_module(voice):
+        modulo = MagicMock()
+        modulo.PiperVoice.load.return_value = voice
+        return modulo
+
+    def test_engine_stays_usable_while_the_piper_model_downloads(self, engine):
+        download_started, release_download = threading.Event(), threading.Event()
+
+        def slow_download():
+            download_started.set()
+            assert release_download.wait(5)
+
+        voice = MagicMock()
+        voice.config.sample_rate = 16000
+        with (
+            patch("src.tts_engine.scarica_voce_piper", side_effect=slow_download),
+            patch.dict("sys.modules", {"piper": self._piper_module(voice)}),
+            patch("src.tts_engine.sintetizza_piper", return_value=b"wav"),
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=b"mp3"),
+        ):
+            first_use = threading.Thread(target=engine.get_preview, args=("Prova.", "paola"))
+            first_use.start()
+            assert download_started.wait(5)
+
+            loader = threading.Thread(target=engine.load_text, args=("Nuovo testo.", "n.txt"))
+            loader.start()
+            loader.join(timeout=2)
+            loaded_during_download = not loader.is_alive()
+
+            release_download.set()
+            first_use.join(5)
+            loader.join(5)
+
+        assert loaded_during_download
+        assert engine.paragraphs == ["Nuovo testo."]
+        assert not first_use.is_alive()
+
+    def test_concurrent_request_never_uses_sample_rate_zero(self, engine):
+        config_reached, release_config = threading.Event(), threading.Event()
+
+        class SlowConfigVoice:
+            @property
+            def config(self):
+                config_reached.set()
+                assert release_config.wait(5)
+                return MagicMock(sample_rate=16000)
+
+        rates = []
+        with (
+            patch("src.tts_engine.scarica_voce_piper"),
+            patch.dict("sys.modules", {"piper": self._piper_module(SlowConfigVoice())}),
+            patch(
+                "src.tts_engine.sintetizza_piper",
+                side_effect=lambda voice, text, rate: rates.append(rate) or b"wav",
+            ),
+            patch("src.tts_engine._wav_to_mp3_bytes", return_value=b"mp3"),
+        ):
+            first = threading.Thread(target=engine.get_preview, args=("Uno.", "paola", "neutro"))
+            first.start()
+            assert config_reached.wait(5)
+
+            second = threading.Thread(target=engine.get_preview, args=("Due.", "paola", "lento"))
+            second.start()
+            second.join(timeout=1)
+
+            release_config.set()
+            first.join(5)
+            second.join(5)
+
+        assert not first.is_alive() and not second.is_alive()
+        assert rates == [16000, 16000]

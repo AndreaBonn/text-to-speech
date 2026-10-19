@@ -88,6 +88,9 @@ class TTSEngine:
     def __init__(self):
         self._cache: OrderedDict[str, bytes] = OrderedDict()
         self._lock = threading.Lock()
+        # Separate from _lock: the first Piper use downloads ~60 MB, and holding
+        # the cache/document lock that long would freeze every request.
+        self._piper_lock = threading.Lock()
         self._paragraphs: list[str] = []
         self._filename: str = ""
         self._piper_voice = None
@@ -260,14 +263,17 @@ class TTSEngine:
 
     def _load_piper(self):
         """Carica il modello Piper una sola volta (thread-safe)."""
-        with self._lock:
+        with self._piper_lock:
             if self._piper_voice is not None:
                 return
             from piper import PiperVoice
 
             scarica_voce_piper()
-            self._piper_voice = PiperVoice.load(str(VOICE_MODEL), config_path=str(VOICE_JSON))
-            self._piper_sample_rate = self._piper_voice.config.sample_rate
+            voice = PiperVoice.load(str(VOICE_MODEL), config_path=str(VOICE_JSON))
+            # _synthesize_text checks _piper_voice without the lock: publish the
+            # voice last, so a reader that sees it also sees its sample rate.
+            self._piper_sample_rate = voice.config.sample_rate
+            self._piper_voice = voice
 
     def _put_cache_if_current(self, key: str, data: bytes, generation: int):
         with self._lock:
