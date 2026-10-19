@@ -277,7 +277,8 @@ class TtsPlayer {
       this._setState('idle');
       this._setPlayIconLoading(false);
 
-      /* Auto-select stile in base al formato del file */
+      /* Auto-select stile in base al formato del file: serve la lista stili */
+      await this._voicesReady;
       this._applySuggestedStyle(data.suggested_style, data.filename);
 
       /* Aggiorna UI */
