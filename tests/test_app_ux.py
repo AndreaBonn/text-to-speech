@@ -101,3 +101,19 @@ class TestOnlineVoiceFailure:
         data = response.get_json()
         assert "Giuseppe" in data["error"]
         assert data["fallback_voice"] == "paola"
+
+
+class TestDefaultVoiceAvailability:
+    def test_voices_default_is_offline_when_online_voices_are_down(self, client):
+        with patch("src.app.engine.is_online_available", return_value=False):
+            data = client.get("/api/voices").get_json()
+
+        assert data["online_available"] is False
+        assert data["default"] == "paola"
+
+    def test_voices_default_stays_online_when_reachable(self, client):
+        with patch("src.app.engine.is_online_available", return_value=True):
+            data = client.get("/api/voices").get_json()
+
+        assert data["online_available"] is True
+        assert data["default"] == "giuseppe"

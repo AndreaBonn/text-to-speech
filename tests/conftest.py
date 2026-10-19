@@ -5,6 +5,7 @@ Fixture condivise per la test suite.
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -22,7 +23,8 @@ def client():
     engine._filename = ""
     engine._cache.clear()
 
-    with app.test_client() as c:
+    # /api/voices probes the online voices over the network: keep tests offline.
+    with patch.object(engine, "is_online_available", return_value=True), app.test_client() as c:
         yield c
 
 

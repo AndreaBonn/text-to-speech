@@ -109,10 +109,13 @@ def index():
 def api_voices():
     lang = get_lang(request)
     styles_meta = get_styles_meta(lang)
+    online = engine.is_online_available()
+    default = DEFAULT_VOICE if online or DEFAULT_VOICE not in EDGE_VOICES else OFFLINE_VOICE
     return jsonify(
         {
             "voices": VOICES_META,
-            "default": DEFAULT_VOICE,
+            "default": default,
+            "online_available": online,
             "styles": styles_meta,
             "default_style": DEFAULT_STYLE,
         }

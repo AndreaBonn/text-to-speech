@@ -8,6 +8,7 @@ import asyncio
 import logging
 import subprocess
 import threading
+import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -23,6 +24,11 @@ _async_loop = asyncio.new_event_loop()
 threading.Thread(target=_async_loop.run_forever, daemon=True, name="tts-async-loop").start()
 
 MAX_CACHE = 50
+SYNTHESIS_TIMEOUT_S = 60
+# The online check runs on page load: short timeout, result reused for a few minutes.
+ONLINE_PROBE_TIMEOUT_S = 8
+ONLINE_PROBE_TTL_S = 300
+ONLINE_PROBE_VOICE = next(iter(EDGE_VOICES))
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
@@ -82,6 +88,8 @@ class TTSEngine:
         self._filename: str = ""
         self._piper_voice = None
         self._piper_sample_rate: int = 0
+        self._online_ok = False
+        self._online_checked_at: float | None = None
 
     @property
     def paragraphs(self) -> list[str]:
@@ -170,7 +178,16 @@ class TTSEngine:
             if index < 0 or index >= len(self._paragraphs):
                 raise IndexError(f"Paragrafo {index} fuori range (durante sintesi)")
             text = self._paragraphs[index]
+        return self._synthesize_text(text, voice, style)
 
+    def _synthesize_text(
+        self,
+        text: str,
+        voice: str,
+        style: str = DEFAULT_STYLE,
+        timeout: float = SYNTHESIS_TIMEOUT_S,
+    ) -> bytes:
+        """Sintetizza un testo arbitrario. Restituisce sempre MP3."""
         if voice in EDGE_VOICES:
             voice_id = EDGE_VOICES[voice]["edge_id"]
             params = READING_STYLES.get(style, READING_STYLES[DEFAULT_STYLE])
@@ -178,7 +195,7 @@ class TTSEngine:
                 sintetizza_edge(voice_id, text, rate=params["rate"], pitch=params["pitch"]),
                 _async_loop,
             )
-            return future.result(timeout=60)
+            return future.result(timeout=timeout)
 
         # Piper (offline) — carica il modello lazy, stile ignorato
         if self._piper_voice is None:
@@ -186,6 +203,23 @@ class TTSEngine:
 
         wav_bytes = sintetizza_piper(self._piper_voice, text, self._piper_sample_rate)
         return _wav_to_mp3_bytes(wav_bytes)
+
+    def is_online_available(self) -> bool:
+        """Verifica (con cache) che le voci online rispondano."""
+        now = time.monotonic()
+        if (
+            self._online_checked_at is not None
+            and now - self._online_checked_at < ONLINE_PROBE_TTL_S
+        ):
+            return self._online_ok
+        try:
+            self._synthesize_text("ok", ONLINE_PROBE_VOICE, timeout=ONLINE_PROBE_TIMEOUT_S)
+            ok = True
+        except Exception:
+            log.warning("Voci online non raggiungibili", exc_info=True)
+            ok = False
+        self._online_ok, self._online_checked_at = ok, now
+        return ok
 
     def _load_piper(self):
         """Carica il modello Piper una sola volta (thread-safe)."""
