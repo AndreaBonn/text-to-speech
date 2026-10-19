@@ -48,6 +48,7 @@ from src.config import (
     suggerisci_installazione,
     verifica_prerequisiti,
 )
+from src.converters import dividi_paragrafi
 from src.synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
 from src.titles import Titolo
 
@@ -211,7 +212,7 @@ def leggi_con_piper(
     voce = PiperVoice.load(str(VOICE_MODEL), config_path=str(VOICE_JSON))
     sample_rate = voce.config.sample_rate
 
-    paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
+    paragrafi = dividi_paragrafi(testo)
     capitoli = trova_capitoli(paragrafi=paragrafi, titoli=titoli or [])
     info(f"Paragrafi da leggere: {len(paragrafi)}")
 
@@ -276,7 +277,7 @@ def leggi_con_edge(
         error(f"Nessun player audio trovato.\n         Installa ffmpeg:\n         {installa}")
         sys.exit(1)
 
-    paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
+    paragrafi = dividi_paragrafi(testo)
     info(f"Paragrafi da leggere: {len(paragrafi)}")
 
     if salva_path:
@@ -473,7 +474,7 @@ struttura output (con --salva):
     info("Converto in testo...")
     testo = file_a_testo(args.file)
 
-    if not testo.strip():
+    if not dividi_paragrafi(testo):
         error("Il file sembra vuoto dopo la conversione.")
         sys.exit(1)
 

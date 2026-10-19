@@ -2557,3 +2557,68 @@ class TestCapitoliCli:
         assert sorted(p.name for p in tmp_path.iterdir()) == ["doc.mp3"]
         assert salva.stat().st_size > 0
         assert "Salvato:" in capsys.readouterr().out
+
+
+class TestParagrafiSenzaParoleCli:
+    """Un EPUB con separatori "❦" si legge fino in fondo: il fregio non va a Edge."""
+
+    def test_edge_non_sintetizza_i_fregi(self, tmp_path):
+        from src.leggi import leggi_con_edge
+
+        salva = tmp_path / "out.mp3"
+        letti = []
+
+        async def fake_sint(voice_id, testo):
+            letti.append(testo)
+            return b"MP3:" + testo.encode()
+
+        with (
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_edge("Alfa\n\n❦\n\nBeta", "giuseppe", salva_path=salva)
+
+        assert letti == ["Alfa", "Beta"]
+        assert salva.read_bytes() == b"MP3:AlfaMP3:Beta"
+
+    def test_piper_non_sintetizza_i_fregi(self, tmp_path):
+        from src.leggi import leggi_con_piper
+
+        sr = 22050
+        mock_piper_module = MagicMock()
+        mock_piper_module.PiperVoice.load.return_value.config.sample_rate = sr
+        letti = []
+
+        def fake_piper(voce, testo, s):
+            letti.append(testo)
+            return _wav_con_frame(sr, b"\x01\x00")
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_piper", side_effect=fake_piper),
+            patch("src.leggi.wav_a_mp3"),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_piper("Alfa\n\n❦\n\nBeta", salva_path=tmp_path / "out.mp3")
+
+        assert letti == ["Alfa", "Beta"]
+
+    def test_main_documento_di_soli_fregi_esce_con_errore(self, tmp_path, capsys):
+        from src.leggi import main
+
+        f = tmp_path / "fregi.txt"
+        f.write_text("❦\n\n* * *")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(f)]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_leggi,
+            pytest.raises(SystemExit) as exc,
+        ):
+            main()
+
+        assert exc.value.code == 1
+        assert "vuoto" in capsys.readouterr().out
+        mock_leggi.assert_not_called()

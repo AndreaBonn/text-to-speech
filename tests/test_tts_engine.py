@@ -739,3 +739,16 @@ class TestPreview:
             engine.get_preview("Ciao", "giuseppe", "lento")
 
         assert synth.call_count == 1
+
+
+class TestParagrafiSenzaParole:
+    """Un fregio come "❦" non ha nulla da pronunciare: Edge non restituirebbe audio."""
+
+    def test_load_text_scarta_i_fregi(self, engine):
+        assert engine.load_text("Uno.\n\n❦\n\nDue.", "doc.txt") == ["Uno.", "Due."]
+
+    def test_solo_fregi_documento_vuoto(self, engine):
+        from src.tts_engine import EmptyDocumentError
+
+        with pytest.raises(EmptyDocumentError):
+            engine.load_text("❦\n\n* * *", "doc.txt")

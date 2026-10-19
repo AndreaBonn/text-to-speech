@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.converters import SUPPORTED_EXTENSIONS, file_a_testo
+from src.converters import SUPPORTED_EXTENSIONS, dividi_paragrafi, file_a_testo
 from src.titles import estrai_titoli
 
 # ===========================================================================
@@ -869,3 +869,26 @@ class TestEstraiTitoli:
         rotto.write_bytes(b"non uno zip")
 
         assert estrai_titoli(rotto) == []
+
+
+# ===========================================================================
+# Test — dividi_paragrafi
+# ===========================================================================
+
+
+class TestDividiParagrafi:
+    """Paragrafi da leggere: niente vuoti, niente fregi senza nulla da pronunciare."""
+
+    def test_divide_e_pulisce(self):
+        assert dividi_paragrafi("  Uno.  \n\n\n\nDue.\n") == ["Uno.", "Due."]
+
+    def test_scarta_fregi_e_separatori(self):
+        testo = "Uno.\n\n❦\n\n* * *\n\n...\n\n—\n\nDue."
+
+        assert dividi_paragrafi(testo) == ["Uno.", "Due."]
+
+    def test_tiene_numeri_e_lettere_accentate(self):
+        assert dividi_paragrafi("1.\n\nÈ\n\nII") == ["1.", "È", "II"]
+
+    def test_testo_senza_parole_nessun_paragrafo(self):
+        assert dividi_paragrafi("❦\n\n   \n\n* * *") == []

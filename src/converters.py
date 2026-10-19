@@ -52,6 +52,17 @@ def file_a_testo(percorso: Path) -> str:
     return convertitore(percorso)
 
 
+def dividi_paragrafi(testo: str) -> list[str]:
+    """Paragrafi da leggere: blocchi separati da una riga vuota, ripuliti.
+
+    Un blocco senza lettere né cifre (un fregio "❦", un separatore "* * *")
+    non ha nulla da pronunciare: Edge TTS risponde "No audio was received" e la
+    lettura si fermerebbe lì (osservato su un EPUB di Project Gutenberg).
+    """
+    blocchi = (p.strip() for p in testo.split("\n\n"))
+    return [p for p in blocchi if any(ch.isalnum() for ch in p)]
+
+
 # ─── Testo puro ──────────────────────────────────────────────────────────────
 
 

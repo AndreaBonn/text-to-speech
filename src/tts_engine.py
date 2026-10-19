@@ -17,7 +17,7 @@ from pathlib import Path
 
 from src.chapters import trova_capitoli, unisci_con_capitoli
 from src.config import DEFAULT_STYLE, EDGE_VOICES, READING_STYLES, VOICE_JSON, VOICE_MODEL
-from src.converters import file_a_testo
+from src.converters import dividi_paragrafi, file_a_testo
 from src.synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
 from src.titles import estrai_titoli
 
@@ -70,7 +70,7 @@ class EmptyDocumentError(ValueError):
 
 
 def _split_paragraphs(text: str) -> list[str]:
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    paragraphs = dividi_paragrafi(text)
     if not paragraphs:
         raise EmptyDocumentError("no readable text")
     return paragraphs
