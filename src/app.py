@@ -165,7 +165,7 @@ def api_load():
         tmp_path = Path(tmp.name)
 
     try:
-        paragraphs = engine.load_file(tmp_path)
+        paragraphs = engine.load_file(tmp_path, display_name=safe_name)
     except EmptyDocumentError:
         return jsonify({"error": tr(lang, "error.no_text")}), 422
     except Exception:

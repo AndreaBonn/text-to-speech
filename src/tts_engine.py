@@ -99,15 +99,16 @@ class TTSEngine:
     def filename(self) -> str:
         return self._filename
 
-    def load_file(self, path: Path) -> list[str]:
+    def load_file(self, path: Path, display_name: str | None = None) -> list[str]:
         """Carica un file e restituisce la lista di paragrafi.
 
-        Supporta: .md, .txt, .epub, .docx, .html, .htm, .pdf
+        Supporta: .md, .txt, .epub, .docx, .html, .htm, .pdf. ``display_name`` è il
+        nome originale del documento quando ``path`` è un file temporaneo.
         """
         paragraphs = _split_paragraphs(file_a_testo(path))
         with self._lock:
             self._paragraphs = paragraphs
-            self._filename = path.name
+            self._filename = display_name or path.name
             self._cache.clear()
         return paragraphs
 

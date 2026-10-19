@@ -207,3 +207,12 @@ class TestDocumentSummary:
         data = client.post("/api/load-text", json={"text": "Ok."}).get_json()
 
         assert data["estimated_seconds"] == 1
+
+
+class TestSavedFileName:
+    def test_saved_mp3_is_named_after_the_uploaded_document(self, client):
+        _upload(client, "capitolo uno.md", b"Testo.")
+        with patch("src.app.engine.save_all", return_value=b"mp3"):
+            response = client.post("/api/save", json={"voice": "paola"})
+
+        assert 'filename="capitolo uno.mp3"' in response.headers["Content-Disposition"]
