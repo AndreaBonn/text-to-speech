@@ -48,7 +48,7 @@ class StylePicker {
   }
 
   set value(id) {
-    const input = this._list.querySelector(`input[name="style"][value="${id}"]`);
+    const input = this._list.querySelector(`input[name="style"][value="${CSS.escape(id)}"]`);
     if (input) input.checked = true;
   }
 

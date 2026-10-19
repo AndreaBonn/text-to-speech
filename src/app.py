@@ -99,7 +99,10 @@ def add_security_headers(response):
         "script-src 'self'; "
         "style-src 'self' https://fonts.googleapis.com; "
         "font-src https://fonts.gstatic.com; "
-        "media-src 'self' blob:"
+        "media-src 'self' blob:; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "form-action 'self'"
     )
     return response
 
@@ -144,7 +147,7 @@ def _sanitize_filename(raw_name: str) -> str:
     """Estrae il nome base e rimuove caratteri non sicuri."""
     base = PurePosixPath(raw_name).name
     ext_pattern = "|".join(re.escape(ext) for ext in sorted(SUPPORTED_EXTENSIONS))
-    if not re.match(rf"^{_FILENAME_CHARS}+({ext_pattern})$", base, re.UNICODE):
+    if not re.fullmatch(rf"{_FILENAME_CHARS}+({ext_pattern})", base, re.UNICODE):
         return ""
     return base
 

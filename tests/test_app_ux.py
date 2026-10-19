@@ -266,3 +266,17 @@ class TestSaveProgressEndpoint:
         header.encode("latin-1")
         assert "filename*=UTF-8''%D0%9A%D0%BD%D0%B8%D0%B3%D0%B0.mp3" in header
         assert 'filename="audio.mp3"' in header
+
+
+class TestHardening:
+    def test_filename_with_trailing_newline_is_rejected(self):
+        from src.app import _sanitize_filename
+
+        assert _sanitize_filename("nota.txt\n") == ""
+
+    def test_csp_restricts_base_objects_and_forms(self, client):
+        csp = client.get("/").headers["Content-Security-Policy"]
+
+        assert "base-uri 'self'" in csp
+        assert "object-src 'none'" in csp
+        assert "form-action 'self'" in csp

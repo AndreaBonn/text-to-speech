@@ -756,7 +756,7 @@ class TtsPlayer {
   /** Azione "continua con la voce offline" se il server ne ha proposta una. */
   _fallbackAction(err, labelKey, retry) {
     const voice = err.fallbackVoice;
-    const option = voice && this._dom.voiceSelect.querySelector(`option[value="${voice}"]`);
+    const option = voice && this._dom.voiceSelect.querySelector(`option[value="${CSS.escape(voice)}"]`);
     if (!option) return null;
     return {
       label: t(labelKey, { voice: option.dataset.name || voice }),
