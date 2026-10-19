@@ -8,6 +8,7 @@ Uso:
 """
 
 import logging
+import math
 import os
 import re
 import tempfile
@@ -19,6 +20,7 @@ from flask import Flask, Response, jsonify, render_template, request
 from src.config import (
     ALL_STYLES,
     ALL_VOICES,
+    CHARS_PER_SECOND,
     DEFAULT_STYLE,
     DEFAULT_VOICE,
     EDGE_VOICES,
@@ -193,9 +195,12 @@ def api_load_text():
 
 
 def _document_response(name: str, paragraphs: list[str], suggested_style: str):
+    total_chars = sum(len(p) for p in paragraphs)
     return jsonify(
         {
             "filename": name,
+            "title": Path(name).stem if Path(name).suffix in SUPPORTED_EXTENSIONS else name,
+            "estimated_seconds": max(1, math.ceil(total_chars / CHARS_PER_SECOND)),
             "total": len(paragraphs),
             "paragraphs": [
                 {"idx": i, "text": p, "chars": len(p)} for i, p in enumerate(paragraphs)

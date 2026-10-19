@@ -74,6 +74,10 @@ FILE_STYLE_DEFAULTS = {
     ".pdf": "neutro",
 }
 
+# Velocità di lettura per stimare la durata: misurata a 15-16 caratteri/s con le
+# voci online in stile neutro (Paola ~19). È una stima, la UI la mostra come "circa".
+CHARS_PER_SECOND = 15
+
 # Frase letta dall'anteprima di una voce, nella lingua della voce
 PREVIEW_TEXTS = {
     "it": "Ciao, sono {name}. Posso leggere ad alta voce i tuoi documenti.",

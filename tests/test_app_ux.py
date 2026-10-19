@@ -189,3 +189,21 @@ class TestLoadPastedText:
         response = client.post("/api/load-text", data="Uno.")
 
         assert response.status_code == 422
+
+
+class TestDocumentSummary:
+    def test_load_returns_title_without_extension(self, client):
+        data = _upload(client, "capitolo uno.md", b"Testo.").get_json()
+
+        assert data["title"] == "capitolo uno"
+
+    def test_load_estimates_listening_time_from_text_length(self, client):
+        text = "a" * 300 + "\n\n" + "b" * 150
+        data = client.post("/api/load-text", json={"text": text}).get_json()
+
+        assert data["estimated_seconds"] == 30
+
+    def test_estimate_is_at_least_one_second(self, client):
+        data = client.post("/api/load-text", json={"text": "Ok."}).get_json()
+
+        assert data["estimated_seconds"] == 1
