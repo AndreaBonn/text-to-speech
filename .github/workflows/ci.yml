@@ -45,6 +45,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Install Chromium for the end-to-end tests
+        run: python -m playwright install --with-deps chromium
+
       - name: Run tests with coverage
         run: pytest tests/ -v --tb=short --junitxml=test-results.xml --cov=. --cov-report=json:coverage/coverage-summary.json
 

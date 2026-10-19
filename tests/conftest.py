@@ -37,3 +37,13 @@ def engine():
     from src.tts_engine import TTSEngine
 
     return TTSEngine()
+
+
+def pytest_collection_modifyitems(items):
+    """Run the browser tests last.
+
+    Playwright's sync API keeps an asyncio event loop running in the main thread
+    for the rest of the session: any later test calling asyncio.run() fails with
+    "cannot be called from a running event loop".
+    """
+    items.sort(key=lambda item: "e2e" in item.path.parts)
