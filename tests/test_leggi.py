@@ -1951,7 +1951,7 @@ class TestLoopEdge:
         # Assert
         assert n_visualizzazioni == [1, 2, 3]
         assert "Lettura interrotta" in capsys.readouterr().out
-        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva, capitoli=[])
 
     def test_sintetizza_i_paragrafi_in_ordine_e_salva_ogni_file(self, tmp_path):
         """Prefetch corretto: ogni paragrafo sintetizzato una volta, in ordine, salvato intero."""
@@ -1991,7 +1991,9 @@ class TestLoopEdge:
         assert (cartella_par / "001.mp3").read_bytes() == b"MP3:Alfa"
         assert (cartella_par / "002.mp3").read_bytes() == b"MP3:Beta"
         assert (cartella_par / "003.mp3").read_bytes() == b"MP3:Gamma"
-        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta", b"MP3:Gamma"], salva)
+        mock_concat.assert_called_once_with(
+            [b"MP3:Alfa", b"MP3:Beta", b"MP3:Gamma"], salva, capitoli=[]
+        )
 
     def test_con_player_e_salva_riproduce_e_salva(self, tmp_path):
         """Con player e --salva, ogni paragrafo è riprodotto nell'ordine e anche salvato."""
@@ -2025,7 +2027,7 @@ class TestLoopEdge:
         assert riprodotti == [b"MP3:Alfa", b"MP3:Beta"]
         assert (cartella_par / "001.mp3").read_bytes() == b"MP3:Alfa"
         assert (cartella_par / "002.mp3").read_bytes() == b"MP3:Beta"
-        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva, capitoli=[])
 
     def test_riproduce_con_riproduci_async(self):
         """Con riproduce=True deve chiamare _riproduci_async per ogni paragrafo."""
@@ -2252,7 +2254,7 @@ class TestLoopEdgeErroreSintesi:
         assert "parziale: 1 di 3 paragrafi" in out
         assert [chiamata.args[0] for chiamata in mock_mostra.call_args_list] == [1, 2]
         assert sorted(p.name for p in cartella_par.iterdir()) == ["001.mp3"]
-        mock_concat.assert_called_once_with([b"MP3:Alfa"], salva)
+        mock_concat.assert_called_once_with([b"MP3:Alfa"], salva, capitoli=[])
 
     def test_lettura_completa_restituisce_true(self, tmp_path):
         from src.leggi import _loop_edge
@@ -2272,7 +2274,7 @@ class TestLoopEdgeErroreSintesi:
             )
 
         assert completato is True
-        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva)
+        mock_concat.assert_called_once_with([b"MP3:Alfa", b"MP3:Beta"], salva, capitoli=[])
 
     def test_errore_di_rete_sul_primo_paragrafo_esce_con_1_senza_file(self, tmp_path, capsys):
         from src.leggi import leggi_con_edge
@@ -2375,3 +2377,183 @@ class TestCtrlCRealeLetturaEdge:
         assert "Traceback" not in stderr
         assert proc.returncode == 0
         assert salva.read_bytes() == b"MP3:AlfaMP3:Beta"
+
+
+# ===========================================================================
+# Test — capitoli ID3 nel salvataggio da CLI
+# ===========================================================================
+
+
+def _wav_sine(sample_rate: int, durata_s: float, freq: int = 440) -> bytes:
+    """WAV mono 16 bit con un sine reale, come quello che produce Piper."""
+    import math
+    import struct
+
+    n = int(sample_rate * durata_s)
+    campioni = (int(8000 * math.sin(2 * math.pi * freq * i / sample_rate)) for i in range(n))
+    return _wav_con_frame(sample_rate, b"".join(struct.pack("<h", c) for c in campioni))
+
+
+MARKDOWN_TRE_CAPITOLI = "# Uno\n\nTesto uno.\n\n## Due\n\nTesto due.\n\n# Tre\n\nTesto tre.\n"
+
+
+class TestCapitoliCli:
+    """--salva scrive un capitolo ID3 per titolo, con Edge e con Piper."""
+
+    def test_main_passa_i_titoli_del_markdown(self, tmp_path):
+        from src.leggi import main
+
+        md = tmp_path / "guida.md"
+        md.write_text(MARKDOWN_TRE_CAPITOLI)
+
+        with (
+            patch("sys.argv", ["leggi.py", str(md), "--salva"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_edge,
+        ):
+            main()
+
+        assert [t.testo for t in mock_edge.call_args[1]["titoli"]] == ["Uno", "Due", "Tre"]
+
+    def test_main_txt_nessun_titolo(self, tmp_path):
+        from src.leggi import main
+
+        txt = tmp_path / "note.txt"
+        txt.write_text("# Non un titolo\n\nTesto.")
+
+        with (
+            patch("sys.argv", ["leggi.py", str(txt), "--salva"]),
+            patch("src.leggi.verifica_prerequisiti", return_value=[]),
+            patch("src.leggi.leggi_con_edge") as mock_edge,
+        ):
+            main()
+
+        assert mock_edge.call_args[1]["titoli"] == []
+
+    def _leggi_edge(self, testo, titoli, salva, sintesi):
+        from src.leggi import leggi_con_edge
+
+        with (
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_edge", side_effect=sintesi),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_edge(testo, "giuseppe", salva_path=salva, titoli=titoli)
+
+    def test_edge_salva_mp3_con_tre_capitoli(self, tmp_path, sine_mp3, ffprobe_mp3):
+        from src.converters import file_a_testo
+        from src.titles import estrai_titoli
+
+        md = tmp_path / "guida.md"
+        md.write_text(MARKDOWN_TRE_CAPITOLI)
+        salva = tmp_path / "full" / "guida.mp3"
+        segmento = sine_mp3(1.0)
+
+        async def fake_sint(voice_id, testo):
+            return segmento
+
+        self._leggi_edge(file_a_testo(md), estrai_titoli(md), salva, fake_sint)
+
+        info = ffprobe_mp3(salva)
+        assert info["titoli"] == ["Uno", "Due", "Tre"]
+        assert info["inizi"][0] == 0.0
+        assert info["inizi"][0] < info["inizi"][1] < info["inizi"][2]
+        assert abs(info["fine"] - info["durata"]) <= 0.5
+
+    def test_edge_senza_titoli_file_come_prima(self, tmp_path):
+        salva = tmp_path / "out.mp3"
+
+        async def fake_sint(voice_id, testo):
+            return b"MP3:" + testo.encode()
+
+        with patch("src.chapters.subprocess.run") as run:
+            self._leggi_edge("Alfa\n\nBeta", [], salva, fake_sint)
+
+        assert salva.read_bytes() == b"MP3:AlfaMP3:Beta"
+        run.assert_not_called()
+
+    def test_edge_interrotto_capitoli_solo_dei_paragrafi_salvati(
+        self, tmp_path, sine_mp3, ffprobe_mp3
+    ):
+        from src.leggi import _loop_edge
+        from src.synthesis import EdgeNoAudioError
+
+        salva = tmp_path / "out.mp3"
+        segmento = sine_mp3(0.5)
+
+        async def fake_sint(voice_id, testo):
+            if testo == "Due":
+                raise EdgeNoAudioError("Edge TTS returned no audio")
+            return segmento
+
+        with (
+            patch("src.leggi.sintetizza_edge", side_effect=fake_sint),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            asyncio.run(
+                _loop_edge(
+                    "it-IT-GiuseppeNeural",
+                    ["Uno", "testo", "Due", "testo"],
+                    False,
+                    salva,
+                    None,
+                    capitoli=[(0, "Uno"), (2, "Due")],
+                )
+            )
+
+        assert ffprobe_mp3(salva)["titoli"] == ["Uno"]
+
+    def test_piper_salva_mp3_con_capitoli(self, tmp_path, ffprobe_mp3):
+        from src.leggi import leggi_con_piper
+        from src.titles import Titolo
+
+        sr = 22050
+        wav = {"Uno": _wav_sine(sr, 1.0), "Testo.": _wav_sine(sr, 0.5), "Due": _wav_sine(sr, 1.0)}
+        mock_piper_module = MagicMock()
+        mock_piper_module.PiperVoice.load.return_value.config.sample_rate = sr
+        salva = tmp_path / "full" / "doc.mp3"
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_piper", side_effect=lambda voce, t, s: wav[t]),
+            patch("src.leggi.mostra_paragrafo"),
+        ):
+            leggi_con_piper(
+                "Uno\n\nTesto.\n\nDue\n\nTesto.",
+                salva_path=salva,
+                titoli=[Titolo("Uno", "Uno"), Titolo("Due", "Due")],
+            )
+
+        info = ffprobe_mp3(salva)
+        assert info["titoli"] == ["Uno", "Due"]
+        assert info["inizi"][0] == 0.0
+        assert info["inizi"][1] == pytest.approx(1.5, abs=0.1)
+        assert abs(info["fine"] - info["durata"]) <= 0.5
+
+    def test_piper_capitoli_falliti_file_salvato_comunque(self, tmp_path, capsys):
+        import subprocess as sp
+
+        from src.leggi import leggi_con_piper
+        from src.titles import Titolo
+
+        sr = 22050
+        mock_piper_module = MagicMock()
+        mock_piper_module.PiperVoice.load.return_value.config.sample_rate = sr
+        salva = tmp_path / "doc.mp3"
+
+        with (
+            patch.dict("sys.modules", {"piper": mock_piper_module}),
+            patch("src.leggi._ha_player", return_value=False),
+            patch("src.leggi.sintetizza_piper", return_value=_wav_sine(sr, 0.3)),
+            patch("src.leggi.mostra_paragrafo"),
+            patch(
+                "src.chapters.timeline_mp3", side_effect=sp.CalledProcessError(1, "ffprobe")
+            ) as timeline,
+        ):
+            leggi_con_piper("Uno\n\nTesto.", salva_path=salva, titoli=[Titolo("Uno", "Uno")])
+
+        timeline.assert_called_once()
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["doc.mp3"]
+        assert salva.stat().st_size > 0
+        assert "Salvato:" in capsys.readouterr().out

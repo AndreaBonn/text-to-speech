@@ -31,6 +31,7 @@ import sys
 import wave
 from pathlib import Path
 
+from src.chapters import aggiungi_capitoli_wav, trova_capitoli, unisci_con_capitoli
 from src.config import (
     ALL_VOICES,
     DATA_OUTPUT,
@@ -48,6 +49,7 @@ from src.config import (
     verifica_prerequisiti,
 )
 from src.synthesis import scarica_voce_piper, sintetizza_edge, sintetizza_piper
+from src.titles import Titolo
 
 # ─── Utilità audio ───────────────────────────────────────────────────────────
 
@@ -96,14 +98,17 @@ def concatena_wav(lista_wav: list[bytes], sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
-def concatena_mp3(lista_mp3: list[bytes], output_path: Path):
-    """Unisce gli MP3 in un unico file, come fa il web (tts_engine._concat_mp3_bytes).
+def concatena_mp3(
+    lista_mp3: list[bytes], output_path: Path, capitoli: list[tuple[int, str]] | None = None
+):
+    """Unisce gli MP3 in un unico file, come fa il web (TTSEngine.save_all).
 
     I frame MP3 sono auto-sincronizzanti: i byte uniti in ordine sono già un
     file valido. ffmpeg con ``concat:pipe:0`` non serve, e dalla 6.x lo rifiuta
-    ("Protocol 'pipe' not on whitelist").
+    ("Protocol 'pipe' not on whitelist"). Con ``capitoli`` il file porta un
+    capitolo ID3 per titolo.
     """
-    output_path.write_bytes(b"".join(lista_mp3))
+    output_path.write_bytes(unisci_con_capitoli(segmenti=lista_mp3, capitoli=capitoli or []))
 
 
 # ─── Riproduzione audio ─────────────────────────────────────────────────────
@@ -180,7 +185,12 @@ def riproduci_audio(audio_bytes: bytes, formato: str):
 # ─── Lettura con Piper TTS ──────────────────────────────────────────────────
 
 
-def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Path | None = None):
+def leggi_con_piper(
+    testo: str,
+    salva_path: Path | None = None,
+    cartella_par: Path | None = None,
+    titoli: list[Titolo] | None = None,
+):
     try:
         from piper import PiperVoice
     except ImportError:
@@ -202,6 +212,7 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
     sample_rate = voce.config.sample_rate
 
     paragrafi = [p.strip() for p in testo.split("\n\n") if p.strip()]
+    capitoli = trova_capitoli(paragrafi=paragrafi, titoli=titoli or [])
     info(f"Paragrafi da leggere: {len(paragrafi)}")
 
     if salva_path:
@@ -238,6 +249,7 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
         info("Creo file audio completo...")
         wav_completo = concatena_wav(tutti_wav, sample_rate)
         wav_a_mp3(wav_completo, salva_path)
+        aggiungi_capitoli_wav(path=salva_path, lista_wav=tutti_wav, capitoli=capitoli)
         info(f"Salvato: {salva_path} ({len(tutti_wav)} paragrafi)")
 
 
@@ -245,7 +257,11 @@ def leggi_con_piper(testo: str, salva_path: Path | None = None, cartella_par: Pa
 
 
 def leggi_con_edge(
-    testo: str, voice_name: str, salva_path: Path | None = None, cartella_par: Path | None = None
+    testo: str,
+    voice_name: str,
+    salva_path: Path | None = None,
+    cartella_par: Path | None = None,
+    titoli: list[Titolo] | None = None,
 ):
     try:
         import edge_tts  # noqa: F401
@@ -272,12 +288,15 @@ def leggi_con_edge(
     if riproduce:
         info("Avvio lettura... (Ctrl+C per interrompere)")
 
-    completato = asyncio.run(_loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par))
+    capitoli = trova_capitoli(paragrafi=paragrafi, titoli=titoli or [])
+    completato = asyncio.run(
+        _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par, capitoli=capitoli)
+    )
     if not completato:
         sys.exit(1)
 
 
-async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par) -> bool:
+async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par, capitoli=()) -> bool:
     """Legge e/o salva i paragrafi con Edge. Restituisce False se la sintesi si è interrotta."""
     tutti_mp3 = []
     completato = True
@@ -327,7 +346,7 @@ async def _loop_edge(voice_id, paragrafi, riproduce, salva_path, cartella_par) -
 
     if salva_path and tutti_mp3:
         info("Creo file audio completo...")
-        concatena_mp3(tutti_mp3, salva_path)
+        concatena_mp3(tutti_mp3, salva_path, capitoli=list(capitoli))
         quanti = f"{len(tutti_mp3)} paragrafi"
         if not completato:
             quanti = f"parziale: {len(tutti_mp3)} di {totale} paragrafi"
@@ -401,6 +420,7 @@ def mostra_paragrafo(i: int, totale: int, testo: str, visibile: bool):
 
 def main():
     from src.converters import SUPPORTED_EXTENSIONS, file_a_testo
+    from src.titles import estrai_titoli
 
     ext_list = ", ".join(sorted(SUPPORTED_EXTENSIONS))
     parser = argparse.ArgumentParser(
@@ -459,11 +479,14 @@ struttura output (con --salva):
 
     info(f"Testo estratto: {len(testo)} caratteri")
 
+    titoli = estrai_titoli(args.file)
     if args.voice in PIPER_VOICES:
         scarica_voce_piper()
-        leggi_con_piper(testo, salva_path=salva_path, cartella_par=cartella_par)
+        leggi_con_piper(testo, salva_path=salva_path, cartella_par=cartella_par, titoli=titoli)
     else:
-        leggi_con_edge(testo, args.voice, salva_path=salva_path, cartella_par=cartella_par)
+        leggi_con_edge(
+            testo, args.voice, salva_path=salva_path, cartella_par=cartella_par, titoli=titoli
+        )
 
     info("Fine.")
 
